@@ -24,13 +24,16 @@
   *{box-sizing:border-box;}
   body{margin:0;font-family:Arial, "Helvetica Neue", sans-serif;background:#EEF2F7;color:#222;}
   .app{max-width:1080px;margin:0 auto;padding:16px 16px 60px;}
-  header{background:var(--navy);color:#fff;padding:18px 20px;border-radius:10px;margin-bottom:14px;position:relative;}
-  header h1{margin:0 0 2px;font-size:19px;padding-right:180px;}
+  header{background:var(--navy);color:#fff;padding:18px 20px;border-radius:10px;margin-bottom:14px;
+    display:flex;justify-content:space-between;align-items:flex-start;gap:16px;flex-wrap:wrap;}
+  header .header-text{flex:1 1 260px;min-width:0;}
+  header h1{margin:0 0 2px;font-size:19px;}
   header p{margin:0;font-size:12px;opacity:.85;}
   header p.meta{margin-top:4px;opacity:.75;font-size:11px;}
 
   /* ---- Link Spreadsheet (source link) ---- */
-  .header-link-wrap{position:absolute;top:18px;right:20px;display:flex;align-items:center;gap:6px;}
+  .header-actions{display:flex;flex-direction:column;align-items:flex-end;gap:6px;flex:0 0 auto;}
+  .header-link-wrap{display:flex;align-items:center;gap:6px;}
   .link-pill{
     display:inline-flex;align-items:center;gap:6px;background:rgba(255,255,255,.14);color:#fff;
     text-decoration:none;font-size:12px;font-weight:600;padding:7px 14px;border-radius:20px;
@@ -39,32 +42,31 @@
   .link-pill:hover{background:rgba(255,255,255,.24);}
   .link-edit-btn{
     background:rgba(255,255,255,.14);border:none;color:#fff;width:28px;height:28px;border-radius:50%;
-    cursor:pointer;font-size:12px;display:flex;align-items:center;justify-content:center;transition:background .15s;
+    cursor:pointer;font-size:12px;display:flex;align-items:center;justify-content:center;transition:background .15s;flex:0 0 auto;
   }
   .link-edit-btn:hover{background:rgba(255,255,255,.28);}
-  .link-updated-info{
-    position:absolute;top:52px;right:20px;font-size:10px;color:#fff;opacity:.7;text-align:right;
-  }
+  .link-updated-info{font-size:10px;color:#fff;opacity:.7;text-align:right;white-space:nowrap;}
   .data-sync-info{
-    position:absolute;top:68px;right:20px;font-size:11px;color:#fff;opacity:.9;text-align:right;
-    display:flex;align-items:center;gap:6px;justify-content:flex-end;
+    font-size:12px;color:#fff;background:rgba(255,255,255,.14);border-radius:20px;padding:7px 10px 7px 14px;
+    display:inline-flex;align-items:center;gap:8px;white-space:nowrap;
   }
   .data-sync-info .sync-date{
-    cursor:text;border-radius:4px;padding:1px 5px;margin:-1px -5px;
+    cursor:text;border-radius:4px;padding:1px 5px;margin:-1px -5px;white-space:nowrap;
     outline:1px dashed transparent;transition:background .15s,outline-color .15s;
   }
-  .data-sync-info .sync-date:hover{background:rgba(255,255,255,.1);outline-color:rgba(255,255,255,.35);}
-  .data-sync-info .sync-date:focus{background:rgba(255,255,255,.15);outline:1px dashed #fff;}
+  .data-sync-info .sync-date:hover{background:rgba(255,255,255,.15);outline-color:rgba(255,255,255,.4);}
+  .data-sync-info .sync-date:focus{background:rgba(255,255,255,.2);outline:1px dashed #fff;}
   .sync-btn{
-    background:rgba(255,255,255,.14);border:none;color:#fff;width:20px;height:20px;border-radius:50%;
-    cursor:pointer;font-size:10px;display:flex;align-items:center;justify-content:center;transition:background .15s;
+    background:rgba(255,255,255,.18);border:none;color:#fff;width:20px;height:20px;border-radius:50%;
+    cursor:pointer;font-size:10px;display:flex;align-items:center;justify-content:center;transition:background .15s;flex:0 0 auto;
   }
-  .sync-btn:hover{background:rgba(255,255,255,.28);}
+  .sync-btn:hover{background:rgba(255,255,255,.3);}
   @media (max-width:640px){
-    header h1{padding-right:0;}
-    .header-link-wrap{position:static;margin-top:10px;}
-    .link-updated-info{position:static;margin-top:4px;text-align:left;}
-    .data-sync-info{position:static;margin-top:4px;justify-content:flex-start;}
+    header{flex-direction:column;}
+    .header-actions{align-items:flex-start;width:100%;}
+    .header-link-wrap{flex-wrap:wrap;}
+    .link-updated-info{text-align:left;}
+    .data-sync-info{justify-content:flex-start;}
   }
   .toast{
     position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(20px);
@@ -203,19 +205,23 @@
 <body>
 <div class="app">
   <header>
-    <h1 class="editable" id="hdrTitle" contenteditable="true" spellcheck="false">🛠️ Digitech WIM Stock Planning Assistant</h1>
-    <p class="editable" id="hdrSubtitle" contenteditable="true" spellcheck="false">Site Reliability Engineer · Digital Sustainability Operation · PT Borneo Indobara</p>
-    <p class="meta editable" id="metaInfo" contenteditable="true" spellcheck="false">Weigh-In-Motion (WIM) System · Per Tanggal: 24 Mei 2026 · Periode Proyeksi: Juni 2026 – Mei 2027 · 3 Lane Aktif</p>
-    <div class="edit-hint">Weigh-In-Motion (WIM)</div>
-
-    <div class="header-link-wrap">
-      <a id="lnkSpreadsheet" class="link-pill" href="#" target="_blank" rel="noopener">🔗 <span id="lnkSpreadsheetText">Link Spreadsheet</span></a>
-      <button id="btnEditLink" class="link-edit-btn" title="Edit link spreadsheet">✏️</button>
+    <div class="header-text">
+      <h1 class="editable" id="hdrTitle" contenteditable="true" spellcheck="false">🛠️ Digitech WIM Stock Planning Assistant</h1>
+      <p class="editable" id="hdrSubtitle" contenteditable="true" spellcheck="false">Site Reliability Engineer · Digital Sustainability Operation · PT Borneo Indobara</p>
+      <p class="meta editable" id="metaInfo" contenteditable="true" spellcheck="false">Weigh-In-Motion (WIM) System · Per Tanggal: 24 Mei 2026 · Periode Proyeksi: Juni 2026 – Mei 2027 · 3 Lane Aktif</p>
+      <div class="edit-hint">Weigh-In-Motion (WIM)</div>
     </div>
-    <div id="lnkUpdatedInfo" class="link-updated-info"></div>
-    <div class="data-sync-info">
-      <span>📅 Data disinkronkan: <span id="dataSyncDate" class="sync-date" contenteditable="true" spellcheck="false">-</span></span>
-      <button id="btnSyncToday" class="sync-btn" title="Tandai data baru saja disinkronkan (isi tanggal hari ini)">🔄</button>
+
+    <div class="header-actions">
+      <div class="header-link-wrap">
+        <a id="lnkSpreadsheet" class="link-pill" href="#" target="_blank" rel="noopener">🔗 <span id="lnkSpreadsheetText">Link Spreadsheet</span></a>
+        <button id="btnEditLink" class="link-edit-btn" title="Edit link spreadsheet">✏️</button>
+      </div>
+      <div id="lnkUpdatedInfo" class="link-updated-info"></div>
+      <div class="data-sync-info">
+        <span>📅 Data disinkronkan: <span id="dataSyncDate" class="sync-date" contenteditable="true" spellcheck="false">-</span></span>
+        <button id="btnSyncToday" class="sync-btn" title="Tandai data baru saja disinkronkan (isi tanggal hari ini)">🔄</button>
+      </div>
     </div>
   </header>
 
