@@ -269,6 +269,7 @@
         </select>
       </div>
       <div>
+        <button class="btn btn-ghost" id="syncSeedBtn" title="Tarik ulang nilai stok dari data seed terbaru (dari file ini), tanpa menghapus item/perubahan manual lain">🔄 Sync Data dari Seed</button>
         <button class="btn btn-primary" id="addStokBtn">+ Tambah Material</button>
       </div>
     </div>
@@ -495,6 +496,87 @@ function kondisiFor(status){
   if(status === 'OUT OF STOCK') return 'Kritis';
   if(status === 'STOK RENDAH') return 'Perlu Reorder';
   return 'Aman';
+}
+
+function prioritasForSync(stokv, safety){
+  if((stokv ?? 0) <= 0) return '🔴 URGENT';
+  if(safety !== null && safety !== undefined && stokv < safety) return '🟡 SEGERA';
+  return '🟢 NORMAL';
+}
+function groupForSync(stokv, safety){
+  if((stokv ?? 0) <= 0) return '🔴 URGENT – SEGERA ORDER (Stok = 0, Kategori Sangat Rutin / Rutin Sedang)';
+  if(safety !== null && safety !== undefined && stokv < safety) return '🟡 SEGERA – ORDER DALAM 2–4 MINGGU (Stok Rendah, Berisiko Habis dalam 3 Bulan)';
+  return null;
+}
+
+function syncFromSeed(){
+  if(!confirm('Tarik ulang nilai stok & buffer dari data seed terbaru di file ini?\n\nItem yang sudah ada akan diperbarui nilai stok/kategorinya. Item baru dari seed akan ditambahkan. Perubahan manual lain (mis. catatan) tidak akan dihapus.')) return;
+
+  const seedStokByNo = {};
+  SEED_STOK.forEach(s => seedStokByNo[s.no] = s);
+  const existingNos = new Set(DB.stok.map(i => i.no));
+  let updatedCount = 0, addedCount = 0;
+
+  DB.stok.forEach(item => {
+    const seed = seedStokByNo[item.no];
+    if(!seed) return;
+    const newStok = numOr(seed.stok) ?? 0;
+    const newSafety = numOr(seed.safety);
+    if(item.stok !== newStok || item.safety !== newSafety) updatedCount++;
+    item.stok = newStok;
+    item.safety = newSafety;
+    item.spek = seed.spek;
+    item.kategori = seed.kategori;
+    item.satuan = seed.satuan || item.satuan;
+    const st = stokStatus(item);
+    item.statusStok = st;
+    item.kondisi = kondisiFor(st);
+  });
+
+  SEED_STOK.forEach(seed => {
+    if(existingNos.has(seed.no)) return;
+    const maxIdNum = DB.stok.reduce((m,i) => Math.max(m, parseInt((i.id||'').replace('st','')) || 0), 0);
+    const newStok = numOr(seed.stok) ?? 0;
+    const newSafety = numOr(seed.safety);
+    const st = stokStatus({stok:newStok, safety:newSafety});
+    DB.stok.push({
+      id: 'st'+(maxIdNum+1), no: seed.no, nama: seed.nama, spek: seed.spek, kategori: seed.kategori,
+      stok: newStok, satuan: seed.satuan || 'pcs', safety: newSafety,
+      keterangan: seed.keterangan || '', statusStok: st, kondisi: kondisiFor(st)
+    });
+    addedCount++;
+  });
+
+  const seedOrderById = {};
+  SEED_ORDER.forEach(o => seedOrderById[o.id] = o);
+  const existingOrderIds = new Set(DB.order.map(o => o.id));
+
+  DB.order.forEach(o => {
+    const seedO = seedOrderById[o.id];
+    if(!seedO) return;
+    const stokv = numOr(seedO.stok) ?? 0;
+    const safety = numOr(seedO.safety);
+    o.stok = stokv;
+    o.safety = safety;
+    if(safety !== null && stokv < safety){
+      o.selisih = safety - stokv; o.qtyOrder = safety - stokv;
+      o.statusPengadaan = 'Plan Reorder'; o.statusPO = 'Plan Reorder';
+    } else {
+      o.selisih = '-'; o.qtyOrder = '-';
+      o.statusPengadaan = 'Monitor'; o.statusPO = 'Monitor';
+    }
+    o.prioritas = prioritasForSync(stokv, safety);
+    o.groupUrgensi = groupForSync(stokv, safety);
+  });
+
+  SEED_ORDER.forEach(seedO => {
+    if(existingOrderIds.has(seedO.id)) return;
+    DB.order.push({ ...seedO });
+  });
+
+  saveDB(DB);
+  renderAll();
+  showToast(`✅ Sync selesai — ${updatedCount} item diperbarui, ${addedCount} item baru ditambahkan.`);
 }
 function statusBadge(status){
   if(status === 'OUT OF STOCK') return '<span class="badge badge-habis">OUT OF STOCK</span>';
@@ -911,6 +993,7 @@ function initDataSyncDate(){
   renderAll();
   initSpreadsheetLink();
   initDataSyncDate();
+  document.getElementById('syncSeedBtn').addEventListener('click', syncFromSeed);
 })();
 </script>
 </body>
