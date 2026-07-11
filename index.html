@@ -377,6 +377,11 @@ const SEED_FORECAST = [{"no": 1, "nama": "Load Cell", "kategori": "Weighing", "s
 
 const DB_KEY = 'wim-stock-plan-db';
 const HEADER_KEY = 'wim-stock-plan-header';
+/* Naikkan versi ini SETIAP KALI data SEED_* di atas diperbarui.
+   Aplikasi akan otomatis sync ulang ke DB tersimpan (di browser manapun)
+   saat mendeteksi versi ini berbeda dari yang terakhir tersimpan. */
+const SEED_VERSION = '2026-07-11-02';
+
 let DB = null;
 
 /* ---------------- EDITABLE HEADER TEXT ---------------- */
@@ -442,22 +447,39 @@ function buildSeedDB(){
     const m = (r.group||'').match(/KATEGORI\s*(\d)\s*[–-]\s*(.*)$/i);
     if(m && !rutinKatDesc[m[1]]) rutinKatDesc[m[1]] = m[2].trim();
   });
-  return { stok, rutin, order, proyeksi, forecast, kesimpulan: SEED_KESIMPULAN, rutinKatDesc };
+  return { stok, rutin, order, proyeksi, forecast, kesimpulan: SEED_KESIMPULAN, rutinKatDesc, seedVersion: SEED_VERSION };
 }
 
+let lastAutoSyncResult = null; // dibaca sekali oleh init() untuk menampilkan toast setelah render
+
 async function loadDB(){
+  let db = null;
   try{
     const res = await store.get(DB_KEY);
-    if(res && res.value) return JSON.parse(res.value);
+    if(res && res.value) db = JSON.parse(res.value);
   }catch(e){ /* fall through */ }
-  // server storage unavailable/empty -> try local backup copy before reseeding
-  try{
-    const backup = localStorage.getItem(DB_KEY + '-backup');
-    if(backup) return JSON.parse(backup);
-  }catch(e){ /* ignore */ }
-  const seeded = buildSeedDB();
-  await saveDB(seeded, true);
-  return seeded;
+  if(!db){
+    // server storage unavailable/empty -> try local backup copy before reseeding
+    try{
+      const backup = localStorage.getItem(DB_KEY + '-backup');
+      if(backup) db = JSON.parse(backup);
+    }catch(e){ /* ignore */ }
+  }
+  if(!db){
+    db = buildSeedDB();
+    await saveDB(db, true);
+    return db;
+  }
+  // DB sudah ada (di browser/perangkat ini) tapi mungkin dari versi file HTML
+  // yang lebih lama -> auto-sync ke data SEED_* terbaru tanpa perlu klik apapun.
+  if(db.seedVersion !== SEED_VERSION){
+    const { updatedCount, addedCount } = mergeSeedIntoDB(db);
+    await saveDB(db, true);
+    if(updatedCount > 0 || addedCount > 0){
+      lastAutoSyncResult = { updatedCount, addedCount };
+    }
+  }
+  return db;
 }
 async function saveDB(db, silent, _attempt){
   const attempt = _attempt || 1;
@@ -509,15 +531,16 @@ function groupForSync(stokv, safety){
   return null;
 }
 
-function syncFromSeed(){
-  if(!confirm('Tarik ulang nilai stok & buffer dari data seed terbaru di file ini?\n\nItem yang sudah ada akan diperbarui nilai stok/kategorinya. Item baru dari seed akan ditambahkan. Perubahan manual lain (mis. catatan) tidak akan dihapus.')) return;
-
+/* Menggabungkan data SEED_* terbaru ke dalam sebuah objek db (bisa dipakai
+   manual lewat tombol "Tarik ulang dari seed" maupun otomatis saat versi
+   berubah). Mengembalikan jumlah item yang diperbarui/ditambahkan. */
+function mergeSeedIntoDB(db){
   const seedStokByNo = {};
   SEED_STOK.forEach(s => seedStokByNo[s.no] = s);
-  const existingNos = new Set(DB.stok.map(i => i.no));
+  const existingNos = new Set(db.stok.map(i => i.no));
   let updatedCount = 0, addedCount = 0;
 
-  DB.stok.forEach(item => {
+  db.stok.forEach(item => {
     const seed = seedStokByNo[item.no];
     if(!seed) return;
     const newStok = numOr(seed.stok) ?? 0;
@@ -535,11 +558,11 @@ function syncFromSeed(){
 
   SEED_STOK.forEach(seed => {
     if(existingNos.has(seed.no)) return;
-    const maxIdNum = DB.stok.reduce((m,i) => Math.max(m, parseInt((i.id||'').replace('st','')) || 0), 0);
+    const maxIdNum = db.stok.reduce((m,i) => Math.max(m, parseInt((i.id||'').replace('st','')) || 0), 0);
     const newStok = numOr(seed.stok) ?? 0;
     const newSafety = numOr(seed.safety);
     const st = stokStatus({stok:newStok, safety:newSafety});
-    DB.stok.push({
+    db.stok.push({
       id: 'st'+(maxIdNum+1), no: seed.no, nama: seed.nama, spek: seed.spek, kategori: seed.kategori,
       stok: newStok, satuan: seed.satuan || 'pcs', safety: newSafety,
       keterangan: seed.keterangan || '', statusStok: st, kondisi: kondisiFor(st)
@@ -549,9 +572,9 @@ function syncFromSeed(){
 
   const seedOrderById = {};
   SEED_ORDER.forEach(o => seedOrderById[o.id] = o);
-  const existingOrderIds = new Set(DB.order.map(o => o.id));
+  const existingOrderIds = new Set(db.order.map(o => o.id));
 
-  DB.order.forEach(o => {
+  db.order.forEach(o => {
     const seedO = seedOrderById[o.id];
     if(!seedO) return;
     const stokv = numOr(seedO.stok) ?? 0;
@@ -571,9 +594,16 @@ function syncFromSeed(){
 
   SEED_ORDER.forEach(seedO => {
     if(existingOrderIds.has(seedO.id)) return;
-    DB.order.push({ ...seedO });
+    db.order.push({ ...seedO });
   });
 
+  db.seedVersion = SEED_VERSION;
+  return { updatedCount, addedCount };
+}
+
+function syncFromSeed(){
+  if(!confirm('Tarik ulang nilai stok & buffer dari data seed terbaru di file ini?\n\nItem yang sudah ada akan diperbarui nilai stok/kategorinya. Item baru dari seed akan ditambahkan. Perubahan manual lain (mis. catatan) tidak akan dihapus.')) return;
+  const { updatedCount, addedCount } = mergeSeedIntoDB(DB);
   saveDB(DB);
   renderAll();
   showToast(`✅ Sync selesai — ${updatedCount} item diperbarui, ${addedCount} item baru ditambahkan.`);
@@ -994,6 +1024,10 @@ function initDataSyncDate(){
   initSpreadsheetLink();
   initDataSyncDate();
   document.getElementById('syncSeedBtn').addEventListener('click', syncFromSeed);
+  if(lastAutoSyncResult){
+    const { updatedCount, addedCount } = lastAutoSyncResult;
+    showToast(`🔄 Data otomatis disinkronkan ke versi terbaru — ${updatedCount} item diperbarui, ${addedCount} item baru.`);
+  }
 })();
 </script>
 </body>
