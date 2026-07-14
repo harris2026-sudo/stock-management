@@ -713,10 +713,8 @@ function renderStok(){
       </div>
       <div class="item-stok"><div class="qty">${i.stok} ${i.satuan||''}</div><div class="qty-lab">Buffer: ${i.safety ?? '-'}</div></div>
       <div>${statusBadge(st)}</div>
-      <div class="item-actions"><button class="btn btn-ghost btn-sm" data-edit-stok="${i.id}">Edit</button></div>
     </div>`;
   }).join('');
-  el.querySelectorAll('[data-edit-stok]').forEach(btn => { btn.onclick = () => openStokModal(btn.dataset.editStok); });
 }
 function openStokModal(id){
   const modal = document.getElementById('stokModal');
