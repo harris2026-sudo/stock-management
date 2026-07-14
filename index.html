@@ -232,6 +232,7 @@
     <div class="tab" data-view="stok">📦 Status Stok</div>
     <div class="tab" data-view="rutin">🔁 Material Rutin</div>
     <div class="tab" data-view="order">🛒 Rekomendasi & Order</div>
+    <div class="tab" data-view="livesheet">📡 Live Sheet</div>
   </div>
 
   <!-- ================= VIEW: DASHBOARD ================= -->
@@ -307,6 +308,50 @@
       </div>
     </div>
     <div id="orderGroups"></div>
+  </div>
+
+  <!-- ================= VIEW: LIVE SHEET (read-only, langsung dari Google Sheets) ================= -->
+  <div class="view" id="view-livesheet">
+    <div class="controls">
+      <div class="grow">
+        <label>Cari Material (Live Sheet)</label>
+        <input type="text" id="liveSearch" placeholder="Nama barang...">
+      </div>
+      <div>
+        <button class="btn btn-ghost" id="liveRefreshBtn">🔄 Refresh dari Sheet</button>
+        <a class="btn btn-ghost" id="liveOpenSheetBtn" href="#" target="_blank" rel="noopener">🔗 Buka Sheet</a>
+      </div>
+    </div>
+    <div class="panel">
+      <div class="panel-head">
+        <span>📡 Data Live — List Asset Management (Google Sheets)</span>
+        <span id="liveStatus" style="font-weight:normal;font-size:11.5px;">Memuat...</span>
+      </div>
+      <div class="panel-body" id="liveSheetBody" style="padding:0;">
+        <div class="table-wrap">
+          <table class="datatable">
+            <thead>
+              <tr>
+                <th>No</th>
+                <th>Nama Barang</th>
+                <th>Category Severity</th>
+                <th>Source</th>
+                <th class="num">Sisa Stok Baru</th>
+                <th>Satuan</th>
+                <th class="num">Stok Rusak/Aus/Dummy</th>
+                <th>Jenis</th>
+              </tr>
+            </thead>
+            <tbody id="liveSheetTbody">
+              <tr><td colspan="8" class="empty-note">Memuat data dari Google Sheets...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+    <p style="font-size:10.5px;color:#889;margin-top:6px;">
+      Data di tab ini dibaca langsung (read-only) dari sheet <strong>List Asset Management</strong> via <code>google.visualization.Query</code> dan tidak memengaruhi data di tab Status Stok / Rekomendasi &amp; Order.
+    </p>
   </div>
 
   <div class="save-bar">
@@ -987,6 +1032,121 @@ function initDataSyncDate(){
   });
 }
 
+/* ================= LIVE SHEET (read-only via google.visualization.Query) ================= */
+/* Sesuai standar MASTER HTML: baca data Google Sheets pakai library resmi Google
+   (google.visualization.Query), bukan JSONP manual. */
+const LIVE_SHEET_ID = '1w3rlXybBify-dOTs26n83WrlO5FzlWvQUbLq21pp4n4';
+const LIVE_SHEET_GID = '1046994733';
+const LIVE_SHEET_URL = `https://docs.google.com/spreadsheets/d/${LIVE_SHEET_ID}/gviz/tq?gid=${LIVE_SHEET_GID}`;
+const LIVE_SHEET_VIEW_URL = `https://docs.google.com/spreadsheets/d/${LIVE_SHEET_ID}/edit?gid=${LIVE_SHEET_GID}#gid=${LIVE_SHEET_GID}`;
+
+let liveSheetRows = [];
+let gchartsLoaded = false;
+
+function loadGoogleCharts(){
+  return new Promise((resolve, reject)=>{
+    if(typeof google !== 'undefined' && google.visualization){ resolve(); return; }
+    const s = document.createElement('script');
+    s.src = 'https://www.gstatic.com/charts/loader.js';
+    s.onload = ()=>{
+      google.charts.load('current', {packages:['table']});
+      google.charts.setOnLoadCallback(()=>{ gchartsLoaded = true; resolve(); });
+    };
+    s.onerror = ()=> reject(new Error('Gagal memuat gstatic charts loader'));
+    document.head.appendChild(s);
+  });
+}
+
+function fetchLiveSheetData(){
+  return new Promise((resolve, reject)=>{
+    try{
+      const query = new google.visualization.Query(LIVE_SHEET_URL);
+      query.send((response)=>{
+        if(response.isError()){
+          reject(new Error(response.getMessage() + ' ' + response.getDetailedMessage()));
+          return;
+        }
+        const dt = response.getDataTable();
+        const rows = [];
+        for(let i=0;i<dt.getNumberOfRows();i++){
+          const nama = dt.getValue(i,1);
+          if(nama === null || nama === '') continue; // skip baris kosong
+          rows.push({
+            no: dt.getValue(i,0),
+            nama: nama,
+            severity: dt.getValue(i,2) || '',
+            source: dt.getValue(i,3) || '',
+            stok: dt.getValue(i,4),
+            satuan: dt.getValue(i,5) || '',
+            stokRusak: dt.getValue(i,6),
+            jenis: dt.getValue(i,7) || ''
+          });
+        }
+        resolve(rows);
+      });
+    }catch(err){ reject(err); }
+  });
+}
+
+function severityBadgeClass(sev){
+  const s = String(sev||'').toLowerCase();
+  if(s === 'critical') return 'badge badge-habis';
+  if(s === 'medium') return 'badge badge-low';
+  if(s === 'low') return 'badge badge-aman';
+  return 'badge badge-grey';
+}
+
+function esc(s){
+  return String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+function renderLiveSheetTable(rows){
+  const tbody = document.getElementById('liveSheetTbody');
+  if(!rows.length){
+    tbody.innerHTML = '<tr><td colspan="8" class="empty-note">Tidak ada data.</td></tr>';
+    return;
+  }
+  tbody.innerHTML = rows.map(r => `
+    <tr>
+      <td>${esc(r.no)}</td>
+      <td>${esc(r.nama)}</td>
+      <td>${r.severity ? `<span class="${severityBadgeClass(r.severity)}">${esc(r.severity)}</span>` : ''}</td>
+      <td>${esc(r.source)}</td>
+      <td class="num">${r.stok === null || r.stok === '' ? '-' : esc(r.stok)}</td>
+      <td>${esc(r.satuan)}</td>
+      <td class="num">${r.stokRusak === null || r.stokRusak === '' ? '-' : esc(r.stokRusak)}</td>
+      <td>${esc(r.jenis)}</td>
+    </tr>
+  `).join('');
+}
+
+async function loadLiveSheet(){
+  const statusEl = document.getElementById('liveStatus');
+  statusEl.textContent = '⏳ Memuat dari Google Sheets...';
+  try{
+    await loadGoogleCharts();
+    liveSheetRows = await fetchLiveSheetData();
+    renderLiveSheetTable(liveSheetRows);
+    statusEl.textContent = '✓ Live · ' + liveSheetRows.length + ' item · ' + new Date().toLocaleTimeString('id-ID');
+  }catch(err){
+    console.error('Live sheet load failed:', err);
+    statusEl.textContent = '⚠️ Gagal memuat (pastikan sheet di-share "Anyone with link can view")';
+    document.getElementById('liveSheetTbody').innerHTML =
+      '<tr><td colspan="8" class="empty-note">Gagal memuat data live. ' + esc(err.message||err) + '</td></tr>';
+  }
+}
+
+function initLiveSheet(){
+  document.getElementById('liveOpenSheetBtn').href = LIVE_SHEET_VIEW_URL;
+  document.getElementById('liveRefreshBtn').addEventListener('click', loadLiveSheet);
+  document.getElementById('liveSearch').addEventListener('input', (e)=>{
+    const q = e.target.value.trim().toLowerCase();
+    const filtered = q ? liveSheetRows.filter(r => String(r.nama).toLowerCase().includes(q)) : liveSheetRows;
+    renderLiveSheetTable(filtered);
+  });
+  loadLiveSheet();
+}
+
 (async function init(){
   await loadHeader();
   DB = await loadDB();
@@ -994,6 +1154,7 @@ function initDataSyncDate(){
   initSpreadsheetLink();
   initDataSyncDate();
   document.getElementById('syncSeedBtn').addEventListener('click', syncFromSeed);
+  initLiveSheet();
 })();
 </script>
 </body>
