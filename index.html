@@ -220,7 +220,7 @@
       <div id="lnkUpdatedInfo" class="link-updated-info"></div>
       <div class="data-sync-info">
         <span>📅 Data disinkronkan: <span id="dataSyncDate" class="sync-date" contenteditable="true" spellcheck="false">-</span></span>
-        <button id="btnSyncToday" class="sync-btn" title="Sinkronkan stok dari Google Sheets (Summary Stok) sekarang">🔄</button>
+        <button id="btnSyncToday" class="sync-btn" title="Tandai data baru saja disinkronkan (isi tanggal hari ini)">🔄</button>
       </div>
     </div>
   </header>
@@ -232,6 +232,7 @@
     <div class="tab" data-view="stok">📦 Status Stok</div>
     <div class="tab" data-view="rutin">🔁 Material Rutin</div>
     <div class="tab" data-view="order">🛒 Rekomendasi & Order</div>
+    <div class="tab" data-view="livesheet">📡 Live Sheet</div>
   </div>
 
   <!-- ================= VIEW: DASHBOARD ================= -->
@@ -269,7 +270,7 @@
         </select>
       </div>
       <div>
-        <button class="btn btn-ghost" id="syncLiveBtn" title="Tarik ulang nilai stok langsung dari Google Sheets (Summary Stok)">🔄 Sync dari Google Sheets</button>
+        <button class="btn btn-ghost" id="syncSeedBtn" title="Tarik ulang nilai stok dari data seed terbaru (dari file ini), tanpa menghapus item/perubahan manual lain">🔄 Sync Data dari Seed</button>
         <button class="btn btn-primary" id="addStokBtn">+ Tambah Material</button>
       </div>
     </div>
@@ -277,7 +278,6 @@
       <div class="panel-head"><span>Daftar Status Stok Material WIM</span><span id="stokCount" style="font-weight:normal;font-size:11.5px;"></span></div>
       <div class="panel-body" id="stokList" style="padding:0;"></div>
     </div>
-    <p id="liveSyncInfo" style="font-size:10.5px;color:#889;margin-top:6px;">Belum sinkron dari Google Sheets.</p>
   </div>
 
   <!-- ================= VIEW: MATERIAL RUTIN ================= -->
@@ -308,6 +308,50 @@
       </div>
     </div>
     <div id="orderGroups"></div>
+  </div>
+
+  <!-- ================= VIEW: LIVE SHEET (read-only, langsung dari Google Sheets) ================= -->
+  <div class="view" id="view-livesheet">
+    <div class="controls">
+      <div class="grow">
+        <label>Cari Material (Live Sheet)</label>
+        <input type="text" id="liveSearch" placeholder="Nama barang...">
+      </div>
+      <div>
+        <button class="btn btn-ghost" id="liveRefreshBtn">🔄 Refresh dari Sheet</button>
+        <a class="btn btn-ghost" id="liveOpenSheetBtn" href="#" target="_blank" rel="noopener">🔗 Buka Sheet</a>
+      </div>
+    </div>
+    <div class="panel">
+      <div class="panel-head">
+        <span>📡 Data Live — List Asset Management (Google Sheets)</span>
+        <span id="liveStatus" style="font-weight:normal;font-size:11.5px;">Memuat...</span>
+      </div>
+      <div class="panel-body" id="liveSheetBody" style="padding:0;">
+        <div class="table-wrap">
+          <table class="datatable">
+            <thead>
+              <tr>
+                <th>No</th>
+                <th>Nama Barang</th>
+                <th>Category Severity</th>
+                <th>Source</th>
+                <th class="num">Sisa Stok Baru</th>
+                <th>Satuan</th>
+                <th class="num">Stok Rusak/Aus/Dummy</th>
+                <th>Jenis</th>
+              </tr>
+            </thead>
+            <tbody id="liveSheetTbody">
+              <tr><td colspan="8" class="empty-note">Memuat data dari Google Sheets...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+    <p style="font-size:10.5px;color:#889;margin-top:6px;">
+      Data di tab ini dibaca langsung (read-only) dari sheet <strong>List Asset Management</strong> via <code>google.visualization.Query</code> dan tidak memengaruhi data di tab Status Stok / Rekomendasi &amp; Order.
+    </p>
   </div>
 
   <div class="save-bar">
@@ -345,8 +389,28 @@
 <datalist id="kategoriList"></datalist>
 
 <script>
-/* ---------------- STORAGE LAYER (window.storage saja — sesuai standar Master HTML, tanpa localStorage) ---------------- */
-const store = window.storage;
+/* ---------------- STORAGE LAYER (auto fallback) ---------------- */
+const localFallback = {
+  async get(key){
+    const v = localStorage.getItem(key);
+    if(v === null) throw new Error('not found');
+    return { key, value: v, shared: false };
+  },
+  async set(key, value){
+    localStorage.setItem(key, value);
+    return { key, value, shared: false };
+  },
+  async delete(key){
+    localStorage.removeItem(key);
+    return { key, deleted: true, shared: false };
+  },
+  async list(prefix=''){
+    const keys = Object.keys(localStorage).filter(k => k.startsWith(prefix));
+    return { keys, prefix, shared: false };
+  }
+};
+const usingClaudeStorage = (typeof window.storage !== 'undefined' && typeof window.storage.get === 'function');
+const store = usingClaudeStorage ? window.storage : localFallback;
 
 /* ---------------- SEED DATA (dari Plan_Stock_Management_VIR_1.xlsx) ---------------- */
 const SEED_STOK = [{"no": 1, "nama": "Load Cell", "spek": "VGT2426033226 Double Ended Shear Beam", "kategori": "Weighing", "stok": 4, "satuan": "pcs", "statusStok": "STOK RENDAH", "safety": 8, "kondisi": "Perlu Reorder", "keterangan": "Buffer stock diperbarui: 2 unit WIM × 4 load cell = 8 pcs aktif. Reorder wajib saat stok ≤ 8 pcs (cover 1 siklus penuh + lead time 4 minggu)."}, {"no": 2, "nama": "Saddle (AX920 Link)", "spek": "AX920 Link", "kategori": "Weighing", "stok": 0, "satuan": "pcs", "statusStok": "OUT OF STOCK", "safety": 8, "kondisi": "Kritis", "keterangan": ""}, {"no": 3, "nama": "Baut Load Cell", "spek": "-", "kategori": "Weighing", "stok": 11, "satuan": "pcs", "statusStok": "STOK RENDAH", "safety": 16, "kondisi": "Perlu Reorder", "keterangan": ""}, {"no": 4, "nama": "Dudukan Load Cell", "spek": "AX920 Loadcell Base", "kategori": "Weighing", "stok": 3, "satuan": "pcs", "statusStok": "TERSEDIA", "safety": 2, "kondisi": "Aman", "keterangan": ""}, {"no": 5, "nama": "Bolt Adjuster Frame", "spek": "-", "kategori": "Adjuster", "stok": 8, "satuan": "pcs", "statusStok": "TERSEDIA", "safety": 8, "kondisi": "Aman", "keterangan": "Stok diperbarui otomatis dari data List Asset Management (per 11 Jul 2026)."}, {"no": 6, "nama": "Longrat Adjuster", "spek": "Checking Rod", "kategori": "Adjuster", "stok": 4, "satuan": "pcs", "statusStok": "TERSEDIA", "safety": 2, "kondisi": "Aman", "keterangan": ""}, {"no": 7, "nama": "Ring Adjuster", "spek": "Washer USS 1\"", "kategori": "Adjuster", "stok": 20, "satuan": "pcs", "statusStok": "TERSEDIA", "safety": 8, "kondisi": "Aman", "keterangan": ""}, {"no": 8, "nama": "Rubber Adjuster", "spek": "-", "kategori": "Adjuster", "stok": 4, "satuan": "pcs", "statusStok": "TERSEDIA", "safety": 4, "kondisi": "Aman", "keterangan": ""}, {"no": 9, "nama": "Mur Adjuster", "spek": "-", "kategori": "Adjuster", "stok": 2, "satuan": "pcs", "statusStok": "STOK RENDAH", "safety": 4, "kondisi": "Perlu Reorder", "keterangan": ""}, {"no": 10, "nama": "Mounting Platform LS", "spek": "- ", "kategori": "Platform", "stok": 8, "satuan": "pcs", "statusStok": "TERSEDIA", "safety": 8, "kondisi": "Aman", "keterangan": "Stok diperbarui otomatis dari data List Asset Management (per 11 Jul 2026)."}, {"no": 11, "nama": "Platform Low Speed", "spek": "-", "kategori": "Platform", "stok": 0, "satuan": "pcs", "statusStok": "OUT OF STOCK", "safety": 2, "kondisi": "Kritis", "keterangan": "Stok diperbarui otomatis dari data List Asset Management (per 11 Jul 2026)."}, {"no": 12, "nama": "Frame Low Speed", "spek": "-", "kategori": "Platform", "stok": 1, "satuan": "pcs", "statusStok": "STOK RENDAH", "safety": 2, "kondisi": "Perlu Reorder", "keterangan": ""}, {"no": 13, "nama": "Junction Box", "spek": "Summing Box", "kategori": "Electrical", "stok": 1, "satuan": "pcs", "statusStok": "STOK RENDAH", "safety": 2, "kondisi": "Perlu Reorder", "keterangan": ""}, {"no": 14, "nama": "RFID Reader", "spek": "-", "kategori": "Electronics", "stok": 1, "satuan": "pcs", "statusStok": "STOK RENDAH", "safety": 2, "kondisi": "Perlu Reorder", "keterangan": ""}, {"no": 15, "nama": "CCTV", "spek": "-", "kategori": "Electronics", "stok": 0, "satuan": "pcs", "statusStok": "OUT OF STOCK", "safety": 2, "kondisi": "Kritis", "keterangan": "Stok diperbarui otomatis dari data List Asset Management (per 11 Jul 2026)."}, {"no": 16, "nama": "Strip Sensor HS", "spek": "-", "kategori": "Electronics", "stok": 4, "satuan": "pcs", "statusStok": "STOK RENDAH", "safety": 16, "kondisi": "Perlu Reorder", "keterangan": ""}, {"no": 17, "nama": "Switch", "spek": "-", "kategori": "Electronics", "stok": 1, "satuan": "pcs", "statusStok": "STOK RENDAH", "safety": 2, "kondisi": "Perlu Reorder", "keterangan": ""}, {"no": 18, "nama": "PLC", "spek": "-", "kategori": "Electronics", "stok": 0, "satuan": "pcs", "statusStok": "OUT OF STOCK", "safety": 2, "kondisi": "Kritis", "keterangan": ""}, {"no": 19, "nama": "Baterai Lithium", "spek": "-", "kategori": "Electronics", "stok": 0, "satuan": "pcs", "statusStok": "OUT OF STOCK", "safety": 2, "kondisi": "Kritis", "keterangan": ""}, {"no": 20, "nama": "Light Curtain", "spek": "-", "kategori": "Electronics", "stok": 2, "satuan": "pcs", "statusStok": "TERSEDIA", "safety": 2, "kondisi": "Aman", "keterangan": ""}, {"no": 21, "nama": "Mini PC", "spek": "-", "kategori": "Electronics", "stok": 2, "satuan": "pcs", "statusStok": "TERSEDIA", "safety": 2, "kondisi": "Aman", "keterangan": ""}, {"no": 22, "nama": "Stabilizer", "spek": "-", "kategori": "Electronics", "stok": 0, "satuan": "pcs", "statusStok": "OUT OF STOCK", "safety": 2, "kondisi": "Kritis", "keterangan": ""}, {"no": 23, "nama": "Inverter", "spek": "-", "kategori": "Electronics", "stok": 2, "satuan": "pcs", "statusStok": "TERSEDIA", "safety": 2, "kondisi": "Aman", "keterangan": "Stok diperbarui otomatis dari data List Asset Management (per 14 Jul 2026). 2 unit SAMOTO Hybrid Solar Inverter tercatat Status: Spare di Lokasi Office VISI — SN ILS63WY106369 (onsite 25 Jun 2026) & SN ILS63WY106370 (onsite 14 Jul 2026)."}, {"no": 24, "nama": "Loop Detector", "spek": "-", "kategori": "Electronics", "stok": 0, "satuan": "pcs", "statusStok": "OUT OF STOCK", "safety": 2, "kondisi": "Kritis", "keterangan": "Stok diperbarui otomatis dari data List Asset Management (per 11 Jul 2026)."}, {"no": 25, "nama": "PSU (Power Supply)", "spek": "-", "kategori": "Electrical", "stok": 0, "satuan": "pcs", "statusStok": "OUT OF STOCK", "safety": 2, "kondisi": "Kritis", "keterangan": ""}, {"no": 26, "nama": "WIM Logic High Speed", "spek": "WIMLOGIX I/O + CPU (Up to 8 Sensors) / 153037", "kategori": "Weighing", "stok": 0, "satuan": "pcs", "safety": 2, "keterangan": "Item baru ditambahkan dari List Asset Management (per 11 Jul 2026). Buffer stock 2 pcs adalah estimasi awal — mohon konfirmasi ke PIC untuk nilai buffer yang sesuai.", "statusStok": "OUT OF STOCK", "kondisi": "Kritis"}, {"no": 27, "nama": "WIM Logic Low Speed", "spek": "WIM4 CPU WITH ETHERNET OUTPUT FOR LS WIM / 125001", "kategori": "Weighing", "stok": 1, "satuan": "pcs", "safety": 2, "keterangan": "Item baru ditambahkan dari List Asset Management (per 11 Jul 2026). Buffer stock 2 pcs adalah estimasi awal — mohon konfirmasi ke PIC untuk nilai buffer yang sesuai.", "statusStok": "STOK RENDAH", "kondisi": "Perlu Reorder"}, {"no": 28, "nama": "Resin Kit - Pasir Silica", "spek": "-", "kategori": "Consumable", "stok": 3, "satuan": "pcs", "safety": 2, "keterangan": "Item baru ditambahkan dari List Asset Management (per 11 Jul 2026). Buffer stock 2 pcs adalah estimasi awal — mohon konfirmasi ke PIC untuk nilai buffer yang sesuai.", "statusStok": "TERSEDIA", "kondisi": "Aman"}, {"no": 29, "nama": "Resin Kit - Resin Epoxy + Hardener", "spek": "-", "kategori": "Consumable", "stok": 4, "satuan": "set", "safety": 2, "keterangan": "Item baru ditambahkan dari List Asset Management (per 11 Jul 2026). Buffer stock 2 set adalah estimasi awal — mohon konfirmasi ke PIC untuk nilai buffer yang sesuai.", "statusStok": "TERSEDIA", "kondisi": "Aman"}];
@@ -430,7 +494,12 @@ async function loadDB(){
   try{
     const res = await store.get(DB_KEY);
     if(res && res.value) return JSON.parse(res.value);
-  }catch(e){ /* belum ada data tersimpan -> seed awal */ }
+  }catch(e){ /* fall through */ }
+  // server storage unavailable/empty -> try local backup copy before reseeding
+  try{
+    const backup = localStorage.getItem(DB_KEY + '-backup');
+    if(backup) return JSON.parse(backup);
+  }catch(e){ /* ignore */ }
   const seeded = buildSeedDB();
   await saveDB(seeded, true);
   return seeded;
@@ -441,12 +510,8 @@ async function saveDB(db, silent, _attempt){
   const statusEl = document.getElementById('saveStatus');
   if(!silent && attempt === 1){ statusEl.textContent = 'Menyimpan...'; statusEl.classList.remove('saved','error'); statusEl.onclick = null; statusEl.style.cursor = 'default'; }
 
-  if(!store || typeof store.set !== 'function'){
-    statusEl.textContent = '⚠ window.storage tidak tersedia di halaman ini — buka file ini di dalam Claude.ai (Artifact), bukan sebagai file lokal/GitHub Pages';
-    statusEl.classList.add('error'); statusEl.classList.remove('saved');
-    statusEl.style.cursor = 'default'; statusEl.onclick = null;
-    return;
-  }
+  // always keep a local backup so data is never lost even if server save fails
+  try{ localStorage.setItem(DB_KEY + '-backup', JSON.stringify(db)); }catch(e){ /* ignore quota errors */ }
 
   try{
     await store.set(DB_KEY, JSON.stringify(db));
@@ -460,7 +525,7 @@ async function saveDB(db, silent, _attempt){
       await new Promise(r => setTimeout(r, attempt * 900));
       return saveDB(db, silent, attempt + 1);
     }
-    statusEl.textContent = '⚠ Gagal simpan ke server — klik untuk coba lagi';
+    statusEl.textContent = '⚠ Gagal simpan ke server (backup lokal aman) — klik untuk coba lagi';
     statusEl.classList.add('error'); statusEl.classList.remove('saved');
     statusEl.style.cursor = 'pointer';
     statusEl.onclick = () => saveDB(db);
@@ -489,6 +554,75 @@ function groupForSync(stokv, safety){
   return null;
 }
 
+function syncFromSeed(){
+  if(!confirm('Tarik ulang nilai stok & buffer dari data seed terbaru di file ini?\n\nItem yang sudah ada akan diperbarui nilai stok/kategorinya. Item baru dari seed akan ditambahkan. Perubahan manual lain (mis. catatan) tidak akan dihapus.')) return;
+
+  const seedStokByNo = {};
+  SEED_STOK.forEach(s => seedStokByNo[s.no] = s);
+  const existingNos = new Set(DB.stok.map(i => i.no));
+  let updatedCount = 0, addedCount = 0;
+
+  DB.stok.forEach(item => {
+    const seed = seedStokByNo[item.no];
+    if(!seed) return;
+    const newStok = numOr(seed.stok) ?? 0;
+    const newSafety = numOr(seed.safety);
+    if(item.stok !== newStok || item.safety !== newSafety) updatedCount++;
+    item.stok = newStok;
+    item.safety = newSafety;
+    item.spek = seed.spek;
+    item.kategori = seed.kategori;
+    item.satuan = seed.satuan || item.satuan;
+    const st = stokStatus(item);
+    item.statusStok = st;
+    item.kondisi = kondisiFor(st);
+  });
+
+  SEED_STOK.forEach(seed => {
+    if(existingNos.has(seed.no)) return;
+    const maxIdNum = DB.stok.reduce((m,i) => Math.max(m, parseInt((i.id||'').replace('st','')) || 0), 0);
+    const newStok = numOr(seed.stok) ?? 0;
+    const newSafety = numOr(seed.safety);
+    const st = stokStatus({stok:newStok, safety:newSafety});
+    DB.stok.push({
+      id: 'st'+(maxIdNum+1), no: seed.no, nama: seed.nama, spek: seed.spek, kategori: seed.kategori,
+      stok: newStok, satuan: seed.satuan || 'pcs', safety: newSafety,
+      keterangan: seed.keterangan || '', statusStok: st, kondisi: kondisiFor(st)
+    });
+    addedCount++;
+  });
+
+  const seedOrderById = {};
+  SEED_ORDER.forEach(o => seedOrderById[o.id] = o);
+  const existingOrderIds = new Set(DB.order.map(o => o.id));
+
+  DB.order.forEach(o => {
+    const seedO = seedOrderById[o.id];
+    if(!seedO) return;
+    const stokv = numOr(seedO.stok) ?? 0;
+    const safety = numOr(seedO.safety);
+    o.stok = stokv;
+    o.safety = safety;
+    if(safety !== null && stokv < safety){
+      o.selisih = safety - stokv; o.qtyOrder = safety - stokv;
+      o.statusPengadaan = 'Plan Reorder'; o.statusPO = 'Plan Reorder';
+    } else {
+      o.selisih = '-'; o.qtyOrder = '-';
+      o.statusPengadaan = 'Monitor'; o.statusPO = 'Monitor';
+    }
+    o.prioritas = prioritasForSync(stokv, safety);
+    o.groupUrgensi = groupForSync(stokv, safety);
+  });
+
+  SEED_ORDER.forEach(seedO => {
+    if(existingOrderIds.has(seedO.id)) return;
+    DB.order.push({ ...seedO });
+  });
+
+  saveDB(DB);
+  renderAll();
+  showToast(`✅ Sync selesai — ${updatedCount} item diperbarui, ${addedCount} item baru ditambahkan.`);
+}
 function statusBadge(status){
   if(status === 'OUT OF STOCK') return '<span class="badge badge-habis">OUT OF STOCK</span>';
   if(status === 'STOK RENDAH') return '<span class="badge badge-low">STOK RENDAH</span>';
@@ -570,14 +704,10 @@ function renderStok(){
   if(items.length === 0){ el.innerHTML = '<div class="empty-note">Tidak ada material yang cocok dengan filter.</div>'; return; }
   el.innerHTML = items.map(i => {
     const st = stokStatus(i);
-    const isLive = SHEET_MAP[i.no] !== undefined;
-    const sumberTag = isLive
-      ? `<span class="badge badge-pantau" title="Stok ditarik otomatis dari Google Sheets (Summary Stok)">📡 Live</span>`
-      : `<span class="badge badge-grey" title="Tidak ada di Summary Stok — isi/ubah stok secara manual">✏️ Manual</span>`;
     return `
     <div class="item-row">
       <div class="item-main">
-        <div class="nm">${i.nama} ${sumberTag}</div>
+        <div class="nm">${i.nama}</div>
         <div class="sub">${i.spek || '-'} · ${i.kategori || '-'} · Kondisi: ${kondisiFor(st)}</div>
         ${i.keterangan ? `<div class="note">${i.keterangan}</div>` : ''}
       </div>
@@ -838,34 +968,26 @@ function formatUpdatedTs(iso){
   return d.toLocaleString('id-ID', {day:'2-digit', month:'short', year:'numeric', hour:'2-digit', minute:'2-digit'});
 }
 
-async function getStoreValue(key, fallback){
-  try{
-    const res = await store.get(key);
-    if(res && res.value !== undefined && res.value !== null) return res.value;
-  }catch(e){ /* belum ada nilai tersimpan */ }
-  return fallback;
-}
-
-async function renderLinkSpreadsheet(){
-  const url = await getStoreValue(LINK_KEY, LINK_DEFAULT);
+function renderLinkSpreadsheet(){
+  const url = localStorage.getItem(LINK_KEY) || LINK_DEFAULT;
   const a = document.getElementById('lnkSpreadsheet');
   const info = document.getElementById('lnkUpdatedInfo');
   a.href = url;
-  const updated = await getStoreValue(LINK_UPDATED_KEY, null);
+  const updated = localStorage.getItem(LINK_UPDATED_KEY);
   info.textContent = updated ? ('Link diperbarui: ' + formatUpdatedTs(updated)) : '';
 }
 
 function initSpreadsheetLink(){
   renderLinkSpreadsheet();
-  document.getElementById('btnEditLink').addEventListener('click', async ()=>{
-    const current = await getStoreValue(LINK_KEY, LINK_DEFAULT);
+  document.getElementById('btnEditLink').addEventListener('click', ()=>{
+    const current = localStorage.getItem(LINK_KEY) || LINK_DEFAULT;
     const next = prompt('Masukkan URL Google Spreadsheet baru:', current);
     if(next === null) return; // cancelled
     const trimmed = next.trim();
     if(!trimmed){ showToast('URL tidak boleh kosong.'); return; }
     if(trimmed === current){ showToast('Tidak ada perubahan pada link.'); return; }
-    await store.set(LINK_KEY, trimmed);
-    await store.set(LINK_UPDATED_KEY, new Date().toISOString());
+    localStorage.setItem(LINK_KEY, trimmed);
+    localStorage.setItem(LINK_UPDATED_KEY, new Date().toISOString());
     renderLinkSpreadsheet();
     showToast('✅ Link spreadsheet berhasil diperbarui.');
   });
@@ -879,31 +1001,27 @@ function formatSyncDate(d){
   return d.toLocaleDateString('id-ID', {day:'2-digit', month:'short', year:'numeric'});
 }
 
-async function renderDataSyncDate(){
+function renderDataSyncDate(){
   const el = document.getElementById('dataSyncDate');
-  const saved = await getStoreValue(DATA_SYNC_KEY, null);
+  const saved = localStorage.getItem(DATA_SYNC_KEY);
   el.textContent = saved || DATA_SYNC_DEFAULT;
-}
-
-async function setDataSyncDateNow(){
-  const label = formatSyncDate(new Date()) + ' ' + new Date().toLocaleTimeString('id-ID',{hour:'2-digit',minute:'2-digit'});
-  await store.set(DATA_SYNC_KEY, label);
-  document.getElementById('dataSyncDate').textContent = label;
 }
 
 function initDataSyncDate(){
   renderDataSyncDate();
 
-  // Tombol 🔄 di header sekarang memicu sinkronisasi LIVE dari Google Sheets (bukan sekadar menandai tanggal)
   document.getElementById('btnSyncToday').addEventListener('click', ()=>{
-    syncLiveStock(true);
+    const label = formatSyncDate(new Date());
+    localStorage.setItem(DATA_SYNC_KEY, label);
+    document.getElementById('dataSyncDate').textContent = label;
+    showToast('✅ Tanggal sinkronisasi data diperbarui ke ' + label + '.');
   });
 
   const dateEl = document.getElementById('dataSyncDate');
-  dateEl.addEventListener('blur', async ()=>{
+  dateEl.addEventListener('blur', ()=>{
     const val = dateEl.textContent.trim();
     if(val){
-      await store.set(DATA_SYNC_KEY, val);
+      localStorage.setItem(DATA_SYNC_KEY, val);
       showToast('✅ Tanggal sinkronisasi data disimpan.');
     } else {
       renderDataSyncDate();
@@ -914,134 +1032,119 @@ function initDataSyncDate(){
   });
 }
 
-/* ================= SINKRONISASI LIVE DARI GOOGLE SHEETS (tab "Summary Stok") ================= */
-/* Baca data Google Sheets langsung via fetch() ke endpoint gviz/tq (format JSON) —
-   tidak perlu memuat script eksternal tambahan, lebih tahan terhadap pembatasan CSP.
-   ke DB.stok / DB.order (via window.storage) — bukan sekadar ditampilkan di tabel terpisah. */
+/* ================= LIVE SHEET (read-only via google.visualization.Query) ================= */
+/* Sesuai standar MASTER HTML: baca data Google Sheets pakai library resmi Google
+   (google.visualization.Query), bukan JSONP manual. */
 const LIVE_SHEET_ID = '1w3rlXybBify-dOTs26n83WrlO5FzlWvQUbLq21pp4n4';
-const LIVE_SHEET_GID = '1046994733'; // tab "Summary Stok"
+const LIVE_SHEET_GID = '1046994733';
 const LIVE_SHEET_URL = `https://docs.google.com/spreadsheets/d/${LIVE_SHEET_ID}/gviz/tq?gid=${LIVE_SHEET_GID}`;
+const LIVE_SHEET_VIEW_URL = `https://docs.google.com/spreadsheets/d/${LIVE_SHEET_ID}/edit?gid=${LIVE_SHEET_GID}#gid=${LIVE_SHEET_GID}`;
 
-/* Peta nama material internal (no di SEED_STOK) -> nama persis di kolom "Nama Barang"
-   pada tab Summary Stok. Item yang TIDAK ada di peta ini berarti belum tercatat di
-   Summary Stok, sehingga stoknya tetap dikelola manual lewat tombol Edit. */
-const SHEET_MAP = {
-  1: 'Loadcell INTERCOMP / BOSCHE',       // Load Cell
-  2: 'Saddle / AX920 Link',               // Saddle (AX920 Link)
-  4: 'Base Loadcell / Dudukan Loadcell',  // Dudukan Load Cell
-  5: 'Bolt Adjuster Platform',            // Bolt Adjuster Frame
-  6: 'Longdrat Adjuster',                 // Longrat Adjuster
-  10: 'Mounting Platfotm Low Speed',      // Mounting Platform LS
-  11: 'Platform Low Speed',
-  12: 'Frame Low Speed',
-  13: 'Junction Box',
-  14: 'RFID Reader',
-  15: 'CCTV',
-  16: 'WIM Strip Sensor',                 // Strip Sensor HS
-  17: 'Switch',
-  18: 'PLC',
-  19: 'Batterai Lithium',                 // Baterai Lithium
-  20: 'Light Curtain',
-  21: 'Mini PC',
-  22: 'Stabilizer',
-  23: 'Inverter',
-  24: 'Loop Detector',
-  25: 'PSU Panel',                        // PSU (Power Supply)
-  26: 'WIM Logic High Speed',
-  27: 'WIM Logic Low Speed'
-  // Tidak dipetakan (tetap manual): Baut Load Cell(3), Ring Adjuster(7), Rubber Adjuster(8),
-  // Mur Adjuster(9), Resin Kit - Pasir Silica(28), Resin Kit - Resin Epoxy + Hardener(29)
-  // — karena belum ada baris terpisah untuk item-item ini di tab Summary Stok.
-};
+let liveSheetRows = [];
+let gchartsLoaded = false;
 
-function fetchSummaryStokRows(){
-  const url = LIVE_SHEET_URL + '&tqx=out:json';
-  return fetch(url)
-    .then(res => {
-      if(!res.ok) throw new Error('HTTP ' + res.status);
-      return res.text();
-    })
-    .then(text => {
-      const m = text.match(/google\.visualization\.Query\.setResponse\(([\s\S]*)\);?\s*$/);
-      if(!m) throw new Error('Format respons Google Sheets tidak dikenali');
-      const json = JSON.parse(m[1]);
-      if(json.status === 'error'){
-        const detail = (json.errors && json.errors[0] && (json.errors[0].detailed_message || json.errors[0].message)) || 'Gagal membaca sheet';
-        throw new Error(detail);
-      }
-      const rows = [];
-      (json.table && json.table.rows || []).forEach(r => {
-        const c = r.c || [];
-        const nama = c[1] ? c[1].v : null;
-        if(nama === null || nama === '') return;
-        rows.push({
-          nama: String(nama).trim(),
-          severity: (c[2] && c[2].v) || '',
-          stok: c[4] ? c[4].v : null,
-          stokRusak: c[6] ? c[6].v : null
-        });
-      });
-      return rows;
-    });
+function loadGoogleCharts(){
+  return new Promise((resolve, reject)=>{
+    if(typeof google !== 'undefined' && google.visualization){ resolve(); return; }
+    const s = document.createElement('script');
+    s.src = 'https://www.gstatic.com/charts/loader.js';
+    s.onload = ()=>{
+      google.charts.load('current', {packages:['table']});
+      google.charts.setOnLoadCallback(()=>{ gchartsLoaded = true; resolve(); });
+    };
+    s.onerror = ()=> reject(new Error('Gagal memuat gstatic charts loader'));
+    document.head.appendChild(s);
+  });
 }
 
-async function syncLiveStock(showManualToast){
-  const infoEl = document.getElementById('liveSyncInfo');
-  if(infoEl) infoEl.textContent = '⏳ Menyinkronkan dari Google Sheets...';
-  try{
-    const rows = await fetchSummaryStokRows();
-    const rowByName = {};
-    rows.forEach(r => { rowByName[r.nama] = r; });
+function fetchLiveSheetData(){
+  return new Promise((resolve, reject)=>{
+    try{
+      const query = new google.visualization.Query(LIVE_SHEET_URL);
+      query.send((response)=>{
+        if(response.isError()){
+          reject(new Error(response.getMessage() + ' ' + response.getDetailedMessage()));
+          return;
+        }
+        const dt = response.getDataTable();
+        const rows = [];
+        for(let i=0;i<dt.getNumberOfRows();i++){
+          const nama = dt.getValue(i,1);
+          if(nama === null || nama === '') continue; // skip baris kosong
+          rows.push({
+            no: dt.getValue(i,0),
+            nama: nama,
+            severity: dt.getValue(i,2) || '',
+            source: dt.getValue(i,3) || '',
+            stok: dt.getValue(i,4),
+            satuan: dt.getValue(i,5) || '',
+            stokRusak: dt.getValue(i,6),
+            jenis: dt.getValue(i,7) || ''
+          });
+        }
+        resolve(rows);
+      });
+    }catch(err){ reject(err); }
+  });
+}
 
-    let updatedCount = 0, skippedNoData = 0;
-    DB.stok.forEach(item => {
-      const sheetName = SHEET_MAP[item.no];
-      if(!sheetName) return; // item ini memang dikelola manual
-      const row = rowByName[sheetName];
-      if(!row || row.stok === null || row.stok === '' || row.stok === undefined){
-        skippedNoData++;
-        return; // belum ada angka stok di sheet untuk item ini -> jangan timpa data yang ada
-      }
-      const newStok = numOr(row.stok) ?? 0;
-      if(item.stok !== newStok) updatedCount++;
-      item.stok = newStok;
-      const st = stokStatus(item);
-      item.statusStok = st;
-      item.kondisi = kondisiFor(st);
-    });
+function severityBadgeClass(sev){
+  const s = String(sev||'').toLowerCase();
+  if(s === 'critical') return 'badge badge-habis';
+  if(s === 'medium') return 'badge badge-low';
+  if(s === 'low') return 'badge badge-aman';
+  return 'badge badge-grey';
+}
 
-    // samakan stok & prioritas di Rekomendasi & Order dengan nilai Status Stok terbaru
-    DB.order.forEach(o => {
-      const src = DB.stok.find(i => i.nama === o.nama);
-      if(!src) return;
-      const stokv = src.stok ?? 0;
-      const safety = src.safety;
-      o.stok = stokv;
-      o.safety = safety;
-      if(safety !== null && safety !== undefined && stokv < safety){
-        o.selisih = safety - stokv; o.qtyOrder = safety - stokv;
-        o.statusPengadaan = (o.statusPengadaan === 'PO Submitted' || o.statusPengadaan === 'PO Approved' || o.statusPengadaan === 'Barang Diterima') ? o.statusPengadaan : 'Plan Reorder';
-        o.statusPO = o.statusPengadaan;
-      } else {
-        o.selisih = '-'; o.qtyOrder = '-';
-      }
-      o.prioritas = prioritasForSync(stokv, safety);
-      o.groupUrgensi = groupForSync(stokv, safety);
-    });
+function esc(s){
+  return String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
 
-    await saveDB(DB, true);
-    await setDataSyncDateNow();
-    renderAll();
-
-    const msg = `✅ Sync selesai — ${updatedCount} item diperbarui dari Google Sheets` + (skippedNoData ? `, ${skippedNoData} item belum ada data di sheet` : '') + '.';
-    if(infoEl) infoEl.textContent = '✓ ' + msg + ' (' + new Date().toLocaleTimeString('id-ID') + ')';
-    if(showManualToast) showToast(msg);
-  }catch(err){
-    console.error('Sync live stock failed:', err);
-    const msg = '⚠️ Gagal sinkron dari Google Sheets (pastikan sheet di-share "Anyone with link can view").';
-    if(infoEl) infoEl.textContent = msg;
-    if(showManualToast) showToast(msg);
+function renderLiveSheetTable(rows){
+  const tbody = document.getElementById('liveSheetTbody');
+  if(!rows.length){
+    tbody.innerHTML = '<tr><td colspan="8" class="empty-note">Tidak ada data.</td></tr>';
+    return;
   }
+  tbody.innerHTML = rows.map(r => `
+    <tr>
+      <td>${esc(r.no)}</td>
+      <td>${esc(r.nama)}</td>
+      <td>${r.severity ? `<span class="${severityBadgeClass(r.severity)}">${esc(r.severity)}</span>` : ''}</td>
+      <td>${esc(r.source)}</td>
+      <td class="num">${r.stok === null || r.stok === '' ? '-' : esc(r.stok)}</td>
+      <td>${esc(r.satuan)}</td>
+      <td class="num">${r.stokRusak === null || r.stokRusak === '' ? '-' : esc(r.stokRusak)}</td>
+      <td>${esc(r.jenis)}</td>
+    </tr>
+  `).join('');
+}
+
+async function loadLiveSheet(){
+  const statusEl = document.getElementById('liveStatus');
+  statusEl.textContent = '⏳ Memuat dari Google Sheets...';
+  try{
+    await loadGoogleCharts();
+    liveSheetRows = await fetchLiveSheetData();
+    renderLiveSheetTable(liveSheetRows);
+    statusEl.textContent = '✓ Live · ' + liveSheetRows.length + ' item · ' + new Date().toLocaleTimeString('id-ID');
+  }catch(err){
+    console.error('Live sheet load failed:', err);
+    statusEl.textContent = '⚠️ Gagal memuat (pastikan sheet di-share "Anyone with link can view")';
+    document.getElementById('liveSheetTbody').innerHTML =
+      '<tr><td colspan="8" class="empty-note">Gagal memuat data live. ' + esc(err.message||err) + '</td></tr>';
+  }
+}
+
+function initLiveSheet(){
+  document.getElementById('liveOpenSheetBtn').href = LIVE_SHEET_VIEW_URL;
+  document.getElementById('liveRefreshBtn').addEventListener('click', loadLiveSheet);
+  document.getElementById('liveSearch').addEventListener('input', (e)=>{
+    const q = e.target.value.trim().toLowerCase();
+    const filtered = q ? liveSheetRows.filter(r => String(r.nama).toLowerCase().includes(q)) : liveSheetRows;
+    renderLiveSheetTable(filtered);
+  });
+  loadLiveSheet();
 }
 
 (async function init(){
@@ -1050,8 +1153,8 @@ async function syncLiveStock(showManualToast){
   renderAll();
   initSpreadsheetLink();
   initDataSyncDate();
-  document.getElementById('syncLiveBtn').addEventListener('click', () => syncLiveStock(true));
-  syncLiveStock(false); // auto-sync tiap kali halaman dibuka
+  document.getElementById('syncSeedBtn').addEventListener('click', syncFromSeed);
+  initLiveSheet();
 })();
 </script>
 </body>
