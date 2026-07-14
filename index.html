@@ -441,6 +441,13 @@ async function saveDB(db, silent, _attempt){
   const statusEl = document.getElementById('saveStatus');
   if(!silent && attempt === 1){ statusEl.textContent = 'Menyimpan...'; statusEl.classList.remove('saved','error'); statusEl.onclick = null; statusEl.style.cursor = 'default'; }
 
+  if(!store || typeof store.set !== 'function'){
+    statusEl.textContent = '⚠ window.storage tidak tersedia di halaman ini — buka file ini di dalam Claude.ai (Artifact), bukan sebagai file lokal/GitHub Pages';
+    statusEl.classList.add('error'); statusEl.classList.remove('saved');
+    statusEl.style.cursor = 'default'; statusEl.onclick = null;
+    return;
+  }
+
   try{
     await store.set(DB_KEY, JSON.stringify(db));
     statusEl.textContent = '✓ Tersimpan · ' + new Date().toLocaleTimeString('id-ID');
@@ -453,7 +460,7 @@ async function saveDB(db, silent, _attempt){
       await new Promise(r => setTimeout(r, attempt * 900));
       return saveDB(db, silent, attempt + 1);
     }
-    statusEl.textContent = '⚠ Gagal simpan ke server (backup lokal aman) — klik untuk coba lagi';
+    statusEl.textContent = '⚠ Gagal simpan ke server — klik untuk coba lagi';
     statusEl.classList.add('error'); statusEl.classList.remove('saved');
     statusEl.style.cursor = 'pointer';
     statusEl.onclick = () => saveDB(db);
@@ -908,8 +915,8 @@ function initDataSyncDate(){
 }
 
 /* ================= SINKRONISASI LIVE DARI GOOGLE SHEETS (tab "Summary Stok") ================= */
-/* Sesuai standar MASTER HTML: baca data Google Sheets pakai library resmi Google
-   (google.visualization.Query), bukan JSONP manual. Data hasil fetch langsung menulis
+/* Baca data Google Sheets langsung via fetch() ke endpoint gviz/tq (format JSON) —
+   tidak perlu memuat script eksternal tambahan, lebih tahan terhadap pembatasan CSP.
    ke DB.stok / DB.order (via window.storage) — bukan sekadar ditampilkan di tabel terpisah. */
 const LIVE_SHEET_ID = '1w3rlXybBify-dOTs26n83WrlO5FzlWvQUbLq21pp4n4';
 const LIVE_SHEET_GID = '1046994733'; // tab "Summary Stok"
@@ -947,53 +954,41 @@ const SHEET_MAP = {
   // — karena belum ada baris terpisah untuk item-item ini di tab Summary Stok.
 };
 
-let gchartsLoaded = false;
-function loadGoogleCharts(){
-  return new Promise((resolve, reject)=>{
-    if(typeof google !== 'undefined' && google.visualization){ resolve(); return; }
-    const s = document.createElement('script');
-    s.src = 'https://www.gstatic.com/charts/loader.js';
-    s.onload = ()=>{
-      google.charts.load('current', {packages:['table']});
-      google.charts.setOnLoadCallback(()=>{ gchartsLoaded = true; resolve(); });
-    };
-    s.onerror = ()=> reject(new Error('Gagal memuat gstatic charts loader'));
-    document.head.appendChild(s);
-  });
-}
-
 function fetchSummaryStokRows(){
-  return new Promise((resolve, reject)=>{
-    try{
-      const query = new google.visualization.Query(LIVE_SHEET_URL);
-      query.send((response)=>{
-        if(response.isError()){
-          reject(new Error(response.getMessage() + ' ' + response.getDetailedMessage()));
-          return;
-        }
-        const dt = response.getDataTable();
-        const rows = [];
-        for(let i=0;i<dt.getNumberOfRows();i++){
-          const nama = dt.getValue(i,1);
-          if(nama === null || nama === '') continue;
-          rows.push({
-            nama: String(nama).trim(),
-            severity: dt.getValue(i,2) || '',
-            stok: dt.getValue(i,4),      // kolom "Sisa Stok Baru"
-            stokRusak: dt.getValue(i,6)
-          });
-        }
-        resolve(rows);
+  const url = LIVE_SHEET_URL + '&tqx=out:json';
+  return fetch(url)
+    .then(res => {
+      if(!res.ok) throw new Error('HTTP ' + res.status);
+      return res.text();
+    })
+    .then(text => {
+      const m = text.match(/google\.visualization\.Query\.setResponse\(([\s\S]*)\);?\s*$/);
+      if(!m) throw new Error('Format respons Google Sheets tidak dikenali');
+      const json = JSON.parse(m[1]);
+      if(json.status === 'error'){
+        const detail = (json.errors && json.errors[0] && (json.errors[0].detailed_message || json.errors[0].message)) || 'Gagal membaca sheet';
+        throw new Error(detail);
+      }
+      const rows = [];
+      (json.table && json.table.rows || []).forEach(r => {
+        const c = r.c || [];
+        const nama = c[1] ? c[1].v : null;
+        if(nama === null || nama === '') return;
+        rows.push({
+          nama: String(nama).trim(),
+          severity: (c[2] && c[2].v) || '',
+          stok: c[4] ? c[4].v : null,
+          stokRusak: c[6] ? c[6].v : null
+        });
       });
-    }catch(err){ reject(err); }
-  });
+      return rows;
+    });
 }
 
 async function syncLiveStock(showManualToast){
   const infoEl = document.getElementById('liveSyncInfo');
   if(infoEl) infoEl.textContent = '⏳ Menyinkronkan dari Google Sheets...';
   try{
-    await loadGoogleCharts();
     const rows = await fetchSummaryStokRows();
     const rowByName = {};
     rows.forEach(r => { rowByName[r.nama] = r; });
