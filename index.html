@@ -274,7 +274,7 @@
       </div>
     </div>
     <div class="panel">
-      <div class="panel-head"><span>Daftar Status Stok Material WIM</span><span id="stokCount" style="font-weight:normal;font-size:11.5px;"></span></div>
+      <div class="panel-head" id="stokPanelHead"><span class="editable-field" id="capStokList" contenteditable="true" spellcheck="false" data-placeholder="Daftar Status Stok Material WIM">Daftar Status Stok Material WIM</span><span><span id="stokCount" style="font-weight:normal;font-size:11.5px;margin-right:10px;"></span><span class="chev">▼</span></span></div>
       <div class="panel-body" id="stokList" style="padding:0;"></div>
     </div>
 
@@ -431,7 +431,8 @@ const headerFields = [
   { el: document.getElementById('tabLabelOrder'), prop: 'tabOrder' },
   { el: document.getElementById('tabLabelLivesheet'), prop: 'tabLivesheet' },
   { el: document.getElementById('capUrgent'), prop: 'capUrgent' },
-  { el: document.getElementById('capSegera'), prop: 'capSegera' }
+  { el: document.getElementById('capSegera'), prop: 'capSegera' },
+  { el: document.getElementById('capStokList'), prop: 'capStokList' }
 ];
 
 async function loadHeader(){
@@ -463,6 +464,16 @@ headerFields.forEach(f => {
     if(e.key === 'Enter'){ e.preventDefault(); f.el.blur(); }
   });
 });
+
+/* Panel Status Stok: klik header untuk collapse/expand (kecuali sedang mengedit caption) */
+(function(){
+  const head = document.getElementById('stokPanelHead');
+  head.addEventListener('click', (e) => {
+    if(e.target.closest('#capStokList')) return;
+    head.classList.toggle('collapsed');
+    document.getElementById('stokList').classList.toggle('hidden');
+  });
+})();
 
 function numOr(v){
   if(v === null || v === undefined || v === '') return null;
