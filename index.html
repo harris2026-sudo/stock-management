@@ -228,11 +228,10 @@
   <div id="toast" class="toast"></div>
 
   <div class="tabs">
-    <div class="tab active" data-view="dashboard">📊 Dashboard</div>
-    <div class="tab" data-view="stok">📦 Status Stok</div>
-    <div class="tab" data-view="rutin">🔁 Material Rutin</div>
-    <div class="tab" data-view="order">🛒 Rekomendasi & Order</div>
-    <div class="tab" data-view="livesheet">📡 Live Sheet</div>
+    <div class="tab active" data-view="dashboard">📊 <span class="editable-field" id="tabLabelDashboard" contenteditable="true" spellcheck="false" data-placeholder="Dashboard">Dashboard</span></div>
+    <div class="tab" data-view="stok">📦 <span class="editable-field" id="tabLabelStok" contenteditable="true" spellcheck="false" data-placeholder="Status Stok & Material Rutin">Status Stok & Material Rutin</span></div>
+    <div class="tab" data-view="order">🛒 <span class="editable-field" id="tabLabelOrder" contenteditable="true" spellcheck="false" data-placeholder="Rekomendasi & Order">Rekomendasi & Order</span></div>
+    <div class="tab" data-view="livesheet">📡 <span class="editable-field" id="tabLabelLivesheet" contenteditable="true" spellcheck="false" data-placeholder="Live Sheet">Live Sheet</span></div>
   </div>
 
   <!-- ================= VIEW: DASHBOARD ================= -->
@@ -240,11 +239,11 @@
     <div class="summary" id="dashCards"></div>
 
     <div class="panel">
-      <div class="panel-head"><span>🔴 Prioritas URGENT — Segera Order</span></div>
+      <div class="panel-head"><span class="editable-field" id="capUrgent" contenteditable="true" spellcheck="false" data-placeholder="🔴 Prioritas URGENT — Segera Order">🔴 Prioritas URGENT — Segera Order</span></div>
       <div class="panel-body" id="dashUrgent"></div>
     </div>
     <div class="panel">
-      <div class="panel-head"><span>🟡 Prioritas SEGERA — Order 2–4 Minggu</span></div>
+      <div class="panel-head"><span class="editable-field" id="capSegera" contenteditable="true" spellcheck="false" data-placeholder="🟡 Prioritas SEGERA — Order 2–4 Minggu">🟡 Prioritas SEGERA — Order 2–4 Minggu</span></div>
       <div class="panel-body" id="dashSegera"></div>
     </div>
   </div>
@@ -278,10 +277,8 @@
       <div class="panel-head"><span>Daftar Status Stok Material WIM</span><span id="stokCount" style="font-weight:normal;font-size:11.5px;"></span></div>
       <div class="panel-body" id="stokList" style="padding:0;"></div>
     </div>
-  </div>
 
-  <!-- ================= VIEW: MATERIAL RUTIN ================= -->
-  <div class="view" id="view-rutin">
+    <div class="panel-head" style="margin-top:18px;background:none;color:var(--navy,#1F3864);padding-left:0;font-size:15px;">🔁 Material Rutin</div>
     <div class="controls">
       <div class="grow">
         <label>Cari Material Rutin</label>
@@ -428,7 +425,13 @@ let DB = null;
 const headerFields = [
   { el: document.getElementById('hdrTitle'), prop: 'title' },
   { el: document.getElementById('hdrSubtitle'), prop: 'subtitle' },
-  { el: document.getElementById('metaInfo'), prop: 'meta' }
+  { el: document.getElementById('metaInfo'), prop: 'meta' },
+  { el: document.getElementById('tabLabelDashboard'), prop: 'tabDashboard' },
+  { el: document.getElementById('tabLabelStok'), prop: 'tabStok' },
+  { el: document.getElementById('tabLabelOrder'), prop: 'tabOrder' },
+  { el: document.getElementById('tabLabelLivesheet'), prop: 'tabLivesheet' },
+  { el: document.getElementById('capUrgent'), prop: 'capUrgent' },
+  { el: document.getElementById('capSegera'), prop: 'capSegera' }
 ];
 
 async function loadHeader(){
