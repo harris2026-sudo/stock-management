@@ -707,7 +707,7 @@ function renderStok(){
     return `
     <div class="item-row">
       <div class="item-main">
-        <div class="nm">${i.nama}</div>
+        <div class="nm">${i.nama} ${i._liveSynced ? '<span class="badge badge-aman" title="Stok mengikuti Live Sheet otomatis" style="font-size:9.5px;vertical-align:middle;">📡 Live</span>' : ''}</div>
         <div class="sub">${i.spek || '-'} · ${i.kategori || '-'} · Kondisi: ${kondisiFor(st)}</div>
         ${i.keterangan ? `<div class="note">${i.keterangan}</div>` : ''}
       </div>
@@ -1127,13 +1127,93 @@ async function loadLiveSheet(){
     await loadGoogleCharts();
     liveSheetRows = await fetchLiveSheetData();
     renderLiveSheetTable(liveSheetRows);
-    statusEl.textContent = '✓ Live · ' + liveSheetRows.length + ' item · ' + new Date().toLocaleTimeString('id-ID');
+    const result = applyLiveSheetToDB(liveSheetRows);
+    statusEl.textContent = '✓ Live · ' + liveSheetRows.length + ' baris sheet · ' +
+      result.matched + ' item Status Stok ter-referensi live (' + result.changed + ' nilai berubah) · ' +
+      new Date().toLocaleTimeString('id-ID');
+    if(result.changed > 0){
+      await saveDB(DB, true);
+      renderAll();
+      showToast(`📡 ${result.changed} item stok diperbarui otomatis dari Live Sheet.`);
+    }
   }catch(err){
     console.error('Live sheet load failed:', err);
     statusEl.textContent = '⚠️ Gagal memuat (pastikan sheet di-share "Anyone with link can view")';
     document.getElementById('liveSheetTbody').innerHTML =
       '<tr><td colspan="8" class="empty-note">Gagal memuat data live. ' + esc(err.message||err) + '</td></tr>';
   }
+}
+
+/* ---------------- LIVE SHEET → STATUS STOK / ORDER / DASHBOARD (referensi stok) ----------------
+   Mapping nama item di app (SEED no) ke nama persis di kolom "Nama Barang" Live Sheet.
+   Sheet & app pakai penamaan yang sedikit berbeda, jadi dipetakan manual di sini.
+   Item yang TIDAK ada di map, atau sheet-nya masih kosong di kolom "Sisa Stok Baru",
+   akan TETAP pakai nilai manual (tidak ditimpa) — supaya tidak menampilkan 0/kosong secara keliru. */
+const LIVE_NAME_MAP = {
+  1: 'Loadcell INTERCOMP / BOSCHE',
+  2: 'Saddle / AX920 Link',
+  4: 'Base Loadcell / Dudukan Loadcell',
+  5: 'Bolt Adjuster Platform',
+  6: 'Longdrat Adjuster',
+  10: 'Mounting Platfotm Low Speed',
+  11: 'Platform Low Speed',
+  12: 'Frame Low Speed',
+  13: 'Junction Box',
+  14: 'RFID Reader',
+  15: 'CCTV',
+  16: 'WIM Strip Sensor',
+  17: 'Switch',
+  18: 'PLC',
+  19: 'Batterai Lithium',
+  20: 'Light Curtain',
+  21: 'Mini PC',
+  22: 'Stabilizer',
+  23: 'Inverter',
+  24: 'Loop Detector',
+  25: 'PSU Panel',
+  26: 'WIM Logic High Speed',
+  27: 'WIM Logic Low Speed',
+  28: 'Resin Kit'
+};
+
+function applyLiveSheetToDB(rows){
+  const liveByName = {};
+  rows.forEach(r => { liveByName[String(r.nama).trim().toLowerCase()] = r; });
+
+  let matched = 0, changed = 0;
+  DB.stok.forEach(item => {
+    const liveName = LIVE_NAME_MAP[item.no];
+    if(!liveName) { item._liveSynced = false; return; }
+    const row = liveByName[liveName.trim().toLowerCase()];
+    if(!row || row.stok === null || row.stok === '' || isNaN(Number(row.stok))){
+      item._liveSynced = false;
+      return;
+    }
+    matched++;
+    item._liveSynced = true;
+    const newStok = Number(row.stok);
+    if(item.stok !== newStok){
+      item.stok = newStok;
+      item.statusStok = stokStatus(item);
+      item.kondisi = kondisiFor(item.statusStok);
+      changed++;
+    }
+    const o = DB.order.find(x => x.id === 'k' + item.no);
+    if(o){
+      const safety = numOr(o.safety);
+      o.stok = newStok;
+      if(safety !== null && newStok < safety){
+        o.selisih = safety - newStok; o.qtyOrder = safety - newStok;
+        o.statusPengadaan = 'Plan Reorder'; o.statusPO = 'Plan Reorder';
+      } else {
+        o.selisih = '-'; o.qtyOrder = '-';
+        o.statusPengadaan = 'Monitor'; o.statusPO = 'Monitor';
+      }
+      o.prioritas = prioritasForSync(newStok, safety);
+      o.groupUrgensi = groupForSync(newStok, safety);
+    }
+  });
+  return { matched, changed };
 }
 
 function initLiveSheet(){
