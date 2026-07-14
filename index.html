@@ -89,6 +89,19 @@
   header .editable:focus{background:rgba(255,255,255,.12);outline:1px dashed #fff;}
   header .edit-hint{font-size:10px;opacity:.6;margin-top:6px;}
 
+  /* ---- Editable text on dark/colored backgrounds (tab label, panel-head caption) ---- */
+  /* Disamakan gaya hover/focus-nya dengan header .editable (highlight putih transparan) */
+  .editable-onDark{
+    cursor:text;border-radius:4px;padding:0 3px;margin:0 -3px;
+    outline:1px dashed transparent;transition:background .15s,outline-color .15s;
+  }
+  .panel-head .editable-onDark:hover,
+  .tab.active .editable-onDark:hover{background:rgba(255,255,255,.15);outline-color:rgba(255,255,255,.45);}
+  .panel-head .editable-onDark:focus,
+  .tab.active .editable-onDark:focus{background:rgba(255,255,255,.22);outline:1px dashed #fff;}
+  .tab:not(.active) .editable-onDark:hover{background:rgba(31,56,100,.08);outline-color:rgba(31,56,100,.35);}
+  .tab:not(.active) .editable-onDark:focus{background:rgba(31,56,100,.1);outline:1px dashed var(--navy);}
+
   /* ---- Editable order item fields ---- */
   .editable-field{
     cursor:text;border-radius:4px;padding:0 3px;margin:0 -3px;
@@ -228,10 +241,10 @@
   <div id="toast" class="toast"></div>
 
   <div class="tabs">
-    <div class="tab active" data-view="dashboard">📊 <span class="editable-field" id="tabLabelDashboard" contenteditable="true" spellcheck="false" data-placeholder="Dashboard">Dashboard</span></div>
-    <div class="tab" data-view="stok">📦 <span class="editable-field" id="tabLabelStok" contenteditable="true" spellcheck="false" data-placeholder="Status Stok & Material Rutin">Status Stok & Material Rutin</span></div>
-    <div class="tab" data-view="order">🛒 <span class="editable-field" id="tabLabelOrder" contenteditable="true" spellcheck="false" data-placeholder="Rekomendasi & Order">Rekomendasi & Order</span></div>
-    <div class="tab" data-view="livesheet">📡 <span class="editable-field" id="tabLabelLivesheet" contenteditable="true" spellcheck="false" data-placeholder="Live Sheet">Live Sheet</span></div>
+    <div class="tab active" data-view="dashboard">📊 <span class="editable-onDark" id="tabLabelDashboard" contenteditable="true" spellcheck="false" data-placeholder="Dashboard">Dashboard</span></div>
+    <div class="tab" data-view="stok">📦 <span class="editable-onDark" id="tabLabelStok" contenteditable="true" spellcheck="false" data-placeholder="Status Stok & Material Rutin">Status Stok & Material Rutin</span></div>
+    <div class="tab" data-view="order">🛒 <span class="editable-onDark" id="tabLabelOrder" contenteditable="true" spellcheck="false" data-placeholder="Rekomendasi & Order">Rekomendasi & Order</span></div>
+    <div class="tab" data-view="livesheet">📡 <span class="editable-onDark" id="tabLabelLivesheet" contenteditable="true" spellcheck="false" data-placeholder="Live Sheet">Live Sheet</span></div>
   </div>
 
   <!-- ================= VIEW: DASHBOARD ================= -->
@@ -239,11 +252,11 @@
     <div class="summary" id="dashCards"></div>
 
     <div class="panel">
-      <div class="panel-head"><span class="editable-field" id="capUrgent" contenteditable="true" spellcheck="false" data-placeholder="🔴 Prioritas URGENT — Segera Order">🔴 Prioritas URGENT — Segera Order</span></div>
+      <div class="panel-head"><span class="editable-onDark" id="capUrgent" contenteditable="true" spellcheck="false" data-placeholder="🔴 Prioritas URGENT — Segera Order">🔴 Prioritas URGENT — Segera Order</span></div>
       <div class="panel-body" id="dashUrgent"></div>
     </div>
     <div class="panel">
-      <div class="panel-head"><span class="editable-field" id="capSegera" contenteditable="true" spellcheck="false" data-placeholder="🟡 Prioritas SEGERA — Order 2–4 Minggu">🟡 Prioritas SEGERA — Order 2–4 Minggu</span></div>
+      <div class="panel-head"><span class="editable-onDark" id="capSegera" contenteditable="true" spellcheck="false" data-placeholder="🟡 Prioritas SEGERA — Order 2–4 Minggu">🟡 Prioritas SEGERA — Order 2–4 Minggu</span></div>
       <div class="panel-body" id="dashSegera"></div>
     </div>
   </div>
@@ -274,7 +287,7 @@
       </div>
     </div>
     <div class="panel">
-      <div class="panel-head" id="stokPanelHead"><span class="editable-field" id="capStokList" contenteditable="true" spellcheck="false" data-placeholder="Daftar Status Stok Material WIM">Daftar Status Stok Material WIM</span><span><span id="stokCount" style="font-weight:normal;font-size:11.5px;margin-right:10px;"></span><span class="chev">▼</span></span></div>
+      <div class="panel-head" id="stokPanelHead"><span class="editable-onDark" id="capStokList" contenteditable="true" spellcheck="false" data-placeholder="Daftar Status Stok Material WIM">Daftar Status Stok Material WIM</span><span><span id="stokCount" style="font-weight:normal;font-size:11.5px;margin-right:10px;"></span><span class="chev">▼</span></span></div>
       <div class="panel-body" id="stokList" style="padding:0;"></div>
     </div>
 
