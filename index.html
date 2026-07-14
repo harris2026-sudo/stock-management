@@ -242,7 +242,7 @@
 
   <div class="tabs">
     <div class="tab active" data-view="dashboard">📊 <span class="editable-onDark" id="tabLabelDashboard" contenteditable="true" spellcheck="false" data-placeholder="Dashboard">Dashboard</span></div>
-    <div class="tab" data-view="stok">📦 <span class="editable-onDark" id="tabLabelStok" contenteditable="true" spellcheck="false" data-placeholder="Status Stok & Material Rutin">Status Stok & Material Rutin</span></div>
+    <div class="tab" data-view="stok">📦 <span class="editable-onDark" id="tabLabelStok" contenteditable="true" spellcheck="false" data-placeholder="Status Stok">Status Stok</span></div>
     <div class="tab" data-view="order">🛒 <span class="editable-onDark" id="tabLabelOrder" contenteditable="true" spellcheck="false" data-placeholder="Rekomendasi & Order">Rekomendasi & Order</span></div>
     <div class="tab" data-view="livesheet">📡 <span class="editable-onDark" id="tabLabelLivesheet" contenteditable="true" spellcheck="false" data-placeholder="Live Sheet">Live Sheet</span></div>
   </div>
@@ -290,15 +290,6 @@
       <div class="panel-head" id="stokPanelHead"><span class="editable-onDark" id="capStokList" contenteditable="true" spellcheck="false" data-placeholder="Daftar Status Stok Material WIM">Daftar Status Stok Material WIM</span><span><span id="stokCount" style="font-weight:normal;font-size:11.5px;margin-right:10px;"></span><span class="chev">▼</span></span></div>
       <div class="panel-body" id="stokList" style="padding:0;"></div>
     </div>
-
-    <div class="panel-head" style="margin-top:18px;background:none;color:var(--navy,#1F3864);padding-left:0;font-size:15px;">🔁 Material Rutin</div>
-    <div class="controls">
-      <div class="grow">
-        <label>Cari Material Rutin</label>
-        <input type="text" id="rutinSearch" placeholder="Nama material...">
-      </div>
-    </div>
-    <div id="rutinGroups"></div>
   </div>
 
   <!-- ================= VIEW: REKOMENDASI & ORDER ================= -->
@@ -874,7 +865,7 @@ function renderRutin(){
     });
   });
 }
-document.getElementById('rutinSearch').addEventListener('input', renderRutin);
+
 
 /* ---------------- REKOMENDASI & ORDER ---------------- */
 const STATUS_PENGADAAN_OPTIONS = ['Monitor','Plan Reorder','PO Submitted','PO Approved','Barang Diterima'];
@@ -969,7 +960,6 @@ function renderAll(){
   renderDashboard();
   populateStokFilters();
   renderStok();
-  renderRutin();
   populateOrderFilters();
   renderOrder();
 }
