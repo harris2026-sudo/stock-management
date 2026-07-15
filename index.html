@@ -323,6 +323,7 @@
         <a class="btn btn-ghost" id="liveOpenSheetBtn" href="#" target="_blank" rel="noopener">🔗 Buka Sheet</a>
       </div>
     </div>
+    <div id="newItemAlertBox"></div>
     <div class="panel">
       <div class="panel-head">
         <span>📡 Data Live — List Asset Management (Google Sheets)</span>
@@ -734,18 +735,19 @@ function renderStok(){
     </div>`;
   }).join('');
 }
-function openStokModal(id){
+function openStokModal(id, prefill){
   const modal = document.getElementById('stokModal');
   const item = id ? DB.stok.find(i=>i.id===id) : null;
+  const p = prefill || {};
   document.getElementById('stokModalTitle').textContent = item ? 'Edit Material' : 'Tambah Material';
   document.getElementById('sId').value = item ? item.id : '';
-  document.getElementById('sNama').value = item ? item.nama : '';
-  document.getElementById('sSpek').value = item ? (item.spek||'') : '';
-  document.getElementById('sKategori').value = item ? (item.kategori||'') : '';
-  document.getElementById('sStok').value = item ? item.stok : 0;
-  document.getElementById('sSatuan').value = item ? (item.satuan||'pcs') : 'pcs';
-  document.getElementById('sSafety').value = item ? (item.safety ?? 0) : 0;
-  document.getElementById('sKeterangan').value = item ? (item.keterangan||'') : '';
+  document.getElementById('sNama').value = item ? item.nama : (p.nama || '');
+  document.getElementById('sSpek').value = item ? (item.spek||'') : (p.spek || '');
+  document.getElementById('sKategori').value = item ? (item.kategori||'') : (p.kategori || '');
+  document.getElementById('sStok').value = item ? item.stok : (p.stok ?? 0);
+  document.getElementById('sSatuan').value = item ? (item.satuan||'pcs') : (p.satuan || 'pcs');
+  document.getElementById('sSafety').value = item ? (item.safety ?? 0) : (p.safety ?? 0);
+  document.getElementById('sKeterangan').value = item ? (item.keterangan||'') : (p.keterangan || '');
   document.getElementById('stokModalDelete').style.display = item ? 'inline-block' : 'none';
   modal.classList.add('active');
 }
@@ -1151,12 +1153,73 @@ async function loadLiveSheet(){
       renderAll();
       showToast(`📡 ${result.changed} item stok diperbarui otomatis dari Live Sheet.`);
     }
+
+    /* ---- Alert & rekomendasi untuk item baru yang belum tercatat di Status Stok ---- */
+    const newItems = findNewLiveItems(liveSheetRows);
+    renderNewItemAlert(newItems);
+    if(newItems.length > 0){
+      showToast(`🆕 ${newItems.length} item baru terdeteksi di Live Sheet, belum tercatat di Status Stok.`);
+    }
   }catch(err){
     console.error('Live sheet load failed:', err);
     statusEl.textContent = '⚠️ Gagal memuat (pastikan sheet di-share "Anyone with link can view")';
     document.getElementById('liveSheetTbody').innerHTML =
       '<tr><td colspan="8" class="empty-note">Gagal memuat data live. ' + esc(err.message||err) + '</td></tr>';
   }
+}
+
+/* ---------------- DETEKSI ITEM BARU + NOTE REKOMENDASI ---------------- */
+function findNewLiveItems(rows){
+  const knownNames = new Set(Object.values(LIVE_NAME_MAP).map(n => n.trim().toLowerCase()));
+  return rows.filter(r => r.nama && !knownNames.has(String(r.nama).trim().toLowerCase()));
+}
+
+function suggestBufferFromSeverity(sev){
+  const s = String(sev||'').toLowerCase();
+  if(s === 'critical') return 2;
+  if(s === 'medium') return 2;
+  if(s === 'low') return 1;
+  return 2; // default aman kalau severity tidak diisi
+}
+
+function buildRecommendationNote(row){
+  const buf = suggestBufferFromSeverity(row.severity);
+  const stokTxt = (row.stok === null || row.stok === '') ? '-' : row.stok;
+  return `🆕 Item baru terdeteksi di Live Sheet, belum tercatat di Status Stok. `
+    + `Stok saat ini: ${stokTxt} ${row.satuan||''} · Severity: ${row.severity||'-'} · Source: ${row.source||'-'} · Jenis: ${row.jenis||'-'}. `
+    + `Rekomendasi: tambahkan ke Status Stok dengan buffer stock ±${buf} pcs (berdasarkan severity), lalu tentukan kategori komponennya (Weighing/Platform/Electronics/Adjuster/dll) sesuai jenis barang.`;
+}
+
+function renderNewItemAlert(newItems){
+  const box = document.getElementById('newItemAlertBox');
+  if(!newItems.length){ box.innerHTML = ''; return; }
+  box.innerHTML = `
+    <div class="panel" style="border:2px solid #C0392B;">
+      <div class="panel-head" style="background:linear-gradient(90deg,#B03A2E,#C0392B);cursor:default;">
+        <span>🆕 ${newItems.length} Item Baru Terdeteksi di Live Sheet — Belum Ada di Status Stok</span>
+      </div>
+      <div class="panel-body" style="padding:6px 14px;">
+        ${newItems.map((r, idx) => `
+          <div style="padding:10px 0;${idx < newItems.length-1 ? 'border-bottom:1px solid #eee;' : ''}">
+            <div style="font-weight:bold;">${esc(r.nama)}</div>
+            <div style="font-size:11.5px;color:#556;margin:4px 0;">${esc(buildRecommendationNote(r))}</div>
+            <button class="btn btn-primary btn-sm" data-add-new-idx="${idx}">+ Tambah ke Status Stok</button>
+          </div>
+        `).join('')}
+      </div>
+    </div>`;
+  box.querySelectorAll('[data-add-new-idx]').forEach(btn=>{
+    btn.onclick = () => {
+      const row = newItems[Number(btn.dataset.addNewIdx)];
+      openStokModal(null, {
+        nama: row.nama,
+        stok: Number(row.stok) || 0,
+        satuan: row.satuan || 'pcs',
+        safety: suggestBufferFromSeverity(row.severity),
+        keterangan: buildRecommendationNote(row)
+      });
+    };
+  });
 }
 
 /* ---------------- LIVE SHEET → STATUS STOK / ORDER / DASHBOARD (referensi stok) ----------------
