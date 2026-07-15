@@ -158,6 +158,11 @@
   .item-main .nm{font-weight:bold;color:#222;font-size:13px;}
   .item-main .sub{color:#778;font-size:11px;margin-top:2px;}
   .item-main .note{color:#8a7000;font-size:11px;margin-top:4px;background:#FFF9E5;padding:4px 7px;border-radius:5px;}
+  .order-note-toggle{color:var(--accent);font-size:11px;font-weight:bold;margin-top:5px;cursor:pointer;user-select:none;}
+  .order-note-toggle:hover{text-decoration:underline;}
+  .chev-inline{display:inline-block;transition:transform .15s;}
+  .order-detail{margin-top:4px;}
+  .order-detail.hidden{display:none;}
   .item-stok{text-align:center;min-width:64px;}
   .item-stok .qty{font-size:16px;font-weight:bold;color:var(--navy);}
   .item-stok .qty-lab{font-size:9px;color:#889;text-transform:uppercase;}
@@ -909,9 +914,6 @@ function renderOrder(){
           <div class="item-main">
             <div class="nm editable-field" contenteditable="true" spellcheck="false" data-order-id="${o.id}" data-field="nama">${o.nama}</div>
             <div class="sub"><span class="editable-field" contenteditable="true" spellcheck="false" data-order-id="${o.id}" data-field="kategori">${o.kategori||'-'}</span> · Selisih kekurangan: <span class="editable-field" contenteditable="true" spellcheck="false" data-order-id="${o.id}" data-field="selisih">${o.selisih ?? '-'}</span> · Qty perlu order: <span class="editable-field" contenteditable="true" spellcheck="false" data-order-id="${o.id}" data-field="qtyOrder">${o.qtyOrder ?? '-'}</span> · Lead time: <span class="editable-field" contenteditable="true" spellcheck="false" data-order-id="${o.id}" data-field="leadTime">${o.leadTime ?? '-'}</span> minggu</div>
-            <div class="sub">Alasan: <span class="editable-field" contenteditable="true" spellcheck="false" data-order-id="${o.id}" data-field="alasan">${o.alasan || '-'}</span></div>
-            <div class="sub">Strategi Pengadaan: <span class="editable-field" contenteditable="true" spellcheck="false" data-order-id="${o.id}" data-field="strategi">${o.strategi || '-'}</span></div>
-            <div class="note editable-field" contenteditable="true" spellcheck="false" data-order-id="${o.id}" data-field="catatan">${o.catatan || '(tidak ada catatan — klik untuk menambah)'}</div>
           </div>
           <div class="item-stok"><div class="qty">${o.stok ?? '-'}</div><div class="qty-lab">Buffer: ${o.safety ?? '-'}</div></div>
           <div>${prioritasBadge(o.prioritas)}</div>
