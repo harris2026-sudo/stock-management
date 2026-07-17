@@ -24,8 +24,16 @@
   *{box-sizing:border-box;}
   body{margin:0;font-family:Arial, "Helvetica Neue", sans-serif;background:#EEF2F7;color:#222;}
   .app{max-width:1080px;margin:0 auto;padding:16px 16px 60px;}
-  header{background:var(--navy);color:#fff;padding:18px 20px;border-radius:10px;margin-bottom:14px;
-    display:flex;justify-content:space-between;align-items:flex-start;gap:16px;flex-wrap:wrap;}
+
+  /* ---- Interactive polish: motion & depth ---- */
+  @keyframes fadeSlideIn{from{opacity:0;transform:translateY(8px);}to{opacity:1;transform:translateY(0);}}
+  @keyframes popIn{from{opacity:0;transform:scale(.94) translateY(8px);}to{opacity:1;transform:scale(1) translateY(0);}}
+  @keyframes pulseRed{0%,100%{box-shadow:0 0 0 0 rgba(192,57,43,.35);}50%{box-shadow:0 0 0 5px rgba(192,57,43,0);}}
+  @keyframes shimmer{0%{background-position:-300px 0;}100%{background-position:300px 0;}}
+  .view.active{animation:fadeSlideIn .32s ease;}
+  header{background:linear-gradient(135deg,var(--navy),#274b82);color:#fff;padding:18px 20px;border-radius:10px;margin-bottom:14px;
+    display:flex;justify-content:space-between;align-items:flex-start;gap:16px;flex-wrap:wrap;
+    box-shadow:0 4px 16px rgba(31,56,100,.25);}
   header .header-text{flex:1 1 260px;min-width:0;}
   header h1{margin:0 0 2px;font-size:19px;}
   header p{margin:0;font-size:12px;opacity:.85;}
@@ -71,7 +79,8 @@
   .toast{
     position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(20px);
     background:var(--navy);color:#fff;padding:10px 18px;border-radius:8px;font-size:13px;
-    box-shadow:0 4px 14px rgba(0,0,0,.25);opacity:0;pointer-events:none;transition:opacity .25s,transform .25s;z-index:999;
+    box-shadow:0 4px 14px rgba(0,0,0,.25);opacity:0;pointer-events:none;
+    transition:opacity .3s ease,transform .35s cubic-bezier(.34,1.56,.64,1);z-index:999;
   }
   .toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
 
@@ -110,13 +119,15 @@
   .editable-field:hover{background:#eef2fb;outline-color:#b9c4e0;}
   .editable-field:focus{background:#e8edfa;outline:1px dashed var(--navy);}
 
-  .tabs{display:flex;gap:6px;margin-bottom:14px;flex-wrap:wrap;}
+  .tabs{display:flex;gap:6px;margin-bottom:14px;flex-wrap:wrap;position:sticky;top:8px;z-index:20;}
   .tab{
     flex:1;min-width:120px;text-align:center;padding:10px 6px;border-radius:8px;background:#fff;color:var(--navy);
     font-weight:bold;font-size:12px;cursor:pointer;box-shadow:0 1px 3px rgba(0,0,0,.08);
-    border:2px solid transparent;
+    border:2px solid transparent;transition:transform .18s ease,box-shadow .18s ease,background .18s ease,color .18s ease;
   }
-  .tab.active{background:var(--navy);color:#fff;}
+  .tab:hover:not(.active){transform:translateY(-2px);background:var(--hilite);box-shadow:0 4px 10px rgba(31,56,100,.15);}
+  .tab.active{background:linear-gradient(135deg,var(--navy),var(--accent));color:#fff;transform:translateY(-1px);box-shadow:0 4px 12px rgba(31,56,100,.35);}
+  .tab:active{transform:scale(.97);}
 
   .view{display:none;}
   .view.active{display:block;}
@@ -125,24 +136,36 @@
   .controls label{font-size:11px;font-weight:bold;color:var(--navy);display:block;margin-bottom:3px;}
   .controls input[type=text], .controls select{
     border:1px solid #c7d3e0;border-radius:6px;padding:7px 9px;font-size:13px;font-family:Arial;width:100%;
+    transition:border-color .15s ease,box-shadow .15s ease;
   }
+  .controls input[type=text]:focus, .controls select:focus{
+    outline:none;border-color:var(--accent);box-shadow:0 0 0 3px rgba(46,95,163,.15);
+  }
+  .skeleton-row{height:14px;border-radius:4px;margin:8px 12px;background:linear-gradient(90deg,#eef1f6 25%,#f7f9fc 37%,#eef1f6 63%);background-size:400px 100%;animation:shimmer 1.4s infinite linear;}
   .controls .grow{flex:1;min-width:160px;}
   .controls .field{min-width:130px;}
-  .btn{border:none;border-radius:6px;padding:9px 14px;font-size:13px;font-weight:bold;cursor:pointer;font-family:Arial;}
+  .btn{border:none;border-radius:6px;padding:9px 14px;font-size:13px;font-weight:bold;cursor:pointer;font-family:Arial;
+    transition:transform .15s ease,box-shadow .15s ease,background .15s ease;}
   .btn-primary{background:var(--accent);color:#fff;}
-  .btn-primary:hover{background:var(--navy);}
+  .btn-primary:hover{background:var(--navy);transform:translateY(-1px);box-shadow:0 5px 12px rgba(46,95,163,.35);}
   .btn-ghost{background:var(--hilite);color:var(--navy);}
-  .btn-ghost:hover{background:#c3d7ee;}
+  .btn-ghost:hover{background:#c3d7ee;transform:translateY(-1px);box-shadow:0 4px 10px rgba(31,56,100,.15);}
+  .btn:active{transform:scale(.96);}
   .btn-sm{padding:5px 9px;font-size:11.5px;border-radius:6px;}
 
   .summary{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin-bottom:14px;}
-  .summary .card{background:#fff;border-radius:10px;padding:10px 6px;text-align:center;box-shadow:0 1px 3px rgba(0,0,0,.08);}
-  .summary .card .num{font-size:18px;font-weight:bold;color:var(--navy);}
+  .summary .card{background:#fff;border-radius:10px;padding:10px 6px;text-align:center;box-shadow:0 1px 3px rgba(0,0,0,.08);
+    transition:transform .2s ease,box-shadow .2s ease;cursor:default;border:1px solid transparent;}
+  .summary .card:hover{transform:translateY(-4px);box-shadow:0 8px 18px rgba(31,56,100,.16);border-color:var(--hilite);}
+  .summary .card .num{font-size:18px;font-weight:bold;color:var(--navy);transition:color .2s ease;}
   .summary .card.alert .num{color:var(--red-fg);}
+  .summary .card.alert{animation:popIn .3s ease;}
   .summary .card .lab{font-size:9px;color:#667;margin-top:2px;text-transform:uppercase;letter-spacing:.2px;}
 
-  .panel{background:#fff;border-radius:10px;margin-bottom:14px;box-shadow:0 1px 3px rgba(0,0,0,.08);overflow:hidden;}
-  .panel-head{background:var(--accent);color:#fff;padding:10px 14px;font-size:13.5px;font-weight:bold;display:flex;justify-content:space-between;align-items:center;cursor:pointer;user-select:none;}
+  .panel{background:#fff;border-radius:10px;margin-bottom:14px;box-shadow:0 1px 3px rgba(0,0,0,.08);overflow:hidden;transition:box-shadow .2s ease;}
+  .panel:hover{box-shadow:0 4px 14px rgba(31,56,100,.1);}
+  .panel-head{background:var(--accent);color:#fff;padding:10px 14px;font-size:13.5px;font-weight:bold;display:flex;justify-content:space-between;align-items:center;cursor:pointer;user-select:none;transition:filter .15s ease;}
+  .panel-head:hover{filter:brightness(1.08);}
   .panel-head .chev{transition:transform .2s;font-size:11px;}
   .panel-head.collapsed .chev{transform:rotate(-90deg);}
   .panel-body{padding:10px 14px;}
@@ -151,7 +174,9 @@
   .panel-head.segera{background:linear-gradient(90deg,#B7950B,#D4AC0D);}
   .panel-head.normal{background:linear-gradient(90deg,#1E7A34,#27AE60);}
 
-  .item-row{display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:10px 12px;border-bottom:1px solid #eee;font-size:12.5px;}
+  .item-row{display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:10px 12px;border-bottom:1px solid #eee;font-size:12.5px;
+    transition:background .15s ease,transform .15s ease;border-left:3px solid transparent;}
+  .item-row:hover{background:#eef4ff !important;border-left-color:var(--accent);}
   .item-row:nth-child(even){background:var(--zebra);}
   .item-row:last-child{border-bottom:none;}
   .item-main{flex:1;min-width:200px;}
@@ -166,11 +191,16 @@
   .item-stok{text-align:center;min-width:64px;}
   .item-stok .qty{font-size:16px;font-weight:bold;color:var(--navy);}
   .item-stok .qty-lab{font-size:9px;color:#889;text-transform:uppercase;}
-  .badge{display:inline-block;padding:2px 9px;border-radius:12px;font-size:10.5px;font-weight:bold;white-space:nowrap;}
+  .stok-bar{height:5px;border-radius:3px;background:#e6ebf3;overflow:hidden;margin-top:5px;width:100%;min-width:64px;}
+  .stok-bar-fill{height:100%;border-radius:3px;transition:width .7s cubic-bezier(.22,.9,.32,1);}
+  .stok-bar-fill.f-habis{background:linear-gradient(90deg,#C0392B,#E74C3C);}
+  .stok-bar-fill.f-low{background:linear-gradient(90deg,#D4AC0D,#F1C40F);}
+  .stok-bar-fill.f-aman{background:linear-gradient(90deg,#1E7A34,#27AE60);}
+  .badge{display:inline-block;padding:2px 9px;border-radius:12px;font-size:10.5px;font-weight:bold;white-space:nowrap;transition:transform .15s ease;}
   .badge-aman{background:var(--green-bg);color:var(--green);}
   .badge-low{background:var(--yellow-bg);color:var(--yellow-fg);}
   .badge-habis{background:var(--red-bg);color:var(--red-fg);}
-  .badge-urgent{background:var(--red-bg);color:var(--red-fg);}
+  .badge-urgent{background:var(--red-bg);color:var(--red-fg);animation:pulseRed 2.2s infinite;}
   .badge-segera{background:var(--yellow-bg);color:var(--yellow-fg);}
   .badge-normal{background:var(--green-bg);color:var(--green);}
   .badge-pantau{background:var(--blue-bg);color:var(--blue-fg);}
@@ -190,9 +220,9 @@
   table.datatable td.num{text-align:right;}
   table.datatable tr.total-row td{background:var(--hilite);font-weight:bold;color:var(--navy);}
 
-  .modal-overlay{display:none;position:fixed;inset:0;background:rgba(20,30,50,.45);z-index:50;align-items:flex-start;justify-content:center;padding:24px 12px;overflow-y:auto;}
+  .modal-overlay{display:none;position:fixed;inset:0;background:rgba(20,30,50,.45);backdrop-filter:blur(3px);z-index:50;align-items:flex-start;justify-content:center;padding:24px 12px;overflow-y:auto;}
   .modal-overlay.active{display:flex;}
-  .modal{background:#fff;border-radius:12px;max-width:480px;width:100%;padding:18px;box-shadow:0 8px 30px rgba(0,0,0,.25);}
+  .modal{background:#fff;border-radius:12px;max-width:480px;width:100%;padding:18px;box-shadow:0 8px 30px rgba(0,0,0,.25);animation:popIn .22s ease;}
   .modal h3{margin:0 0 12px;color:var(--navy);font-size:15px;}
   .modal .grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
   .modal label{font-size:11px;font-weight:bold;color:var(--navy);display:block;margin-bottom:3px;margin-top:8px;}
@@ -556,6 +586,38 @@ async function saveDB(db, silent, _attempt){
   }
 }
 
+function stokBarPct(stok, safety){
+  const s = Number(stok)||0;
+  if(s <= 0) return 0;
+  const target = (safety && safety > 0) ? safety * 2 : Math.max(s, 4);
+  return Math.max(6, Math.min(100, Math.round((s/target)*100)));
+}
+function stokBarClass(status){
+  if(status === 'OUT OF STOCK') return 'f-habis';
+  if(status === 'STOK RENDAH') return 'f-low';
+  return 'f-aman';
+}
+function stokBarHtml(stok, safety, status){
+  return `<div class="stok-bar"><div class="stok-bar-fill ${stokBarClass(status)}" style="width:0%" data-target="${stokBarPct(stok,safety)}"></div></div>`;
+}
+function animateBars(container){
+  (container||document).querySelectorAll('.stok-bar-fill[data-target]').forEach(el=>{
+    const t = el.dataset.target;
+    requestAnimationFrame(()=>{ el.style.width = t + '%'; });
+  });
+}
+function animateCount(el, to){
+  const from = 0;
+  const dur = 500;
+  const start = performance.now();
+  function step(now){
+    const p = Math.min(1, (now-start)/dur);
+    const eased = 1 - Math.pow(1-p, 3);
+    el.textContent = Math.round(from + (to-from)*eased);
+    if(p < 1) requestAnimationFrame(step);
+  }
+  requestAnimationFrame(step);
+}
 function stokStatus(item){
   if((item.stok ?? 0) <= 0) return 'OUT OF STOCK';
   if(item.safety !== null && item.safety !== undefined && item.stok < item.safety) return 'STOK RENDAH';
@@ -682,17 +744,18 @@ function renderDashboard(){
   const segeraOrders = DB.order.filter(o => (o.prioritas||'').includes('SEGERA'));
 
   document.getElementById('dashCards').innerHTML = `
-    <div class="card"><div class="num">${total}</div><div class="lab">Total Jenis Material</div></div>
-    <div class="card ${habis.length?'alert':''}"><div class="num">${habis.length}</div><div class="lab">Out of Stock</div></div>
-    <div class="card ${rendah.length?'alert':''}"><div class="num">${rendah.length}</div><div class="lab">Stok Rendah</div></div>
-    <div class="card"><div class="num">${aman.length}</div><div class="lab">Stok Aman</div></div>
-    <div class="card ${urgentOrders.length?'alert':''}"><div class="num">${urgentOrders.length}</div><div class="lab">Prioritas Urgent</div></div>
+    <div class="card"><div class="num" data-count="${total}">0</div><div class="lab">Total Jenis Material</div></div>
+    <div class="card ${habis.length?'alert':''}"><div class="num" data-count="${habis.length}">0</div><div class="lab">Out of Stock</div></div>
+    <div class="card ${rendah.length?'alert':''}"><div class="num" data-count="${rendah.length}">0</div><div class="lab">Stok Rendah</div></div>
+    <div class="card"><div class="num" data-count="${aman.length}">0</div><div class="lab">Stok Aman</div></div>
+    <div class="card ${urgentOrders.length?'alert':''}"><div class="num" data-count="${urgentOrders.length}">0</div><div class="lab">Prioritas Urgent</div></div>
   `;
+  document.querySelectorAll('#dashCards .num[data-count]').forEach(el => animateCount(el, Number(el.dataset.count)));
 
   const rowHtml = (o) => `
     <div class="item-row">
       <div class="item-main"><div class="nm">${o.nama}</div><div class="sub">${o.kategori||'-'} · Qty perlu order: ${o.qtyOrder ?? '-'} · Lead time: ${o.leadTime ?? '-'} minggu</div></div>
-      <div class="item-stok"><div class="qty">${o.stok ?? '-'}</div><div class="qty-lab">Stok (Buffer: ${o.safety ?? '-'})</div></div>
+      <div class="item-stok"><div class="qty">${o.stok ?? '-'}</div><div class="qty-lab">Stok (Buffer: ${o.safety ?? '-'})</div>${stokBarHtml(o.stok, o.safety, (o.prioritas||'').includes('URGENT') ? 'OUT OF STOCK' : ((o.prioritas||'').includes('SEGERA') ? 'STOK RENDAH' : 'TERSEDIA'))}</div>
       <div>${prioritasBadge(o.prioritas)}</div>
     </div>`;
 
@@ -702,6 +765,8 @@ function renderDashboard(){
   document.getElementById('dashSegera').innerHTML = segeraOrders.length
     ? segeraOrders.map(rowHtml).join('')
     : '<div class="empty-note">Tidak ada item prioritas SEGERA saat ini.</div>';
+  animateBars(document.getElementById('dashUrgent'));
+  animateBars(document.getElementById('dashSegera'));
 }
 
 /* ---------------- STATUS STOK ---------------- */
@@ -735,10 +800,11 @@ function renderStok(){
         <div class="sub">${i.spek || '-'} · ${i.kategori || '-'} · Kondisi: ${kondisiFor(st)}</div>
         ${i.keterangan ? `<div class="note">${i.keterangan}</div>` : ''}
       </div>
-      <div class="item-stok"><div class="qty">${i.stok} ${i.satuan||''}</div><div class="qty-lab">Buffer: ${i.safety ?? '-'}</div></div>
+      <div class="item-stok"><div class="qty">${i.stok} ${i.satuan||''}</div><div class="qty-lab">Buffer: ${i.safety ?? '-'}</div>${stokBarHtml(i.stok, i.safety, st)}</div>
       <div>${statusBadge(st)}</div>
     </div>`;
   }).join('');
+  animateBars(el);
 }
 function openStokModal(id, prefill){
   const modal = document.getElementById('stokModal');
@@ -915,7 +981,7 @@ function renderOrder(){
             <div class="nm editable-field" contenteditable="true" spellcheck="false" data-order-id="${o.id}" data-field="nama">${o.nama}</div>
             <div class="sub"><span class="editable-field" contenteditable="true" spellcheck="false" data-order-id="${o.id}" data-field="kategori">${o.kategori||'-'}</span> · Selisih kekurangan: <span class="editable-field" contenteditable="true" spellcheck="false" data-order-id="${o.id}" data-field="selisih">${o.selisih ?? '-'}</span> · Qty perlu order: <span class="editable-field" contenteditable="true" spellcheck="false" data-order-id="${o.id}" data-field="qtyOrder">${o.qtyOrder ?? '-'}</span> · Lead time: <span class="editable-field" contenteditable="true" spellcheck="false" data-order-id="${o.id}" data-field="leadTime">${o.leadTime ?? '-'}</span> minggu</div>
           </div>
-          <div class="item-stok"><div class="qty">${o.stok ?? '-'}</div><div class="qty-lab">Buffer: ${o.safety ?? '-'}</div></div>
+          <div class="item-stok"><div class="qty">${o.stok ?? '-'}</div><div class="qty-lab">Buffer: ${o.safety ?? '-'}</div>${stokBarHtml(o.stok, o.safety, (o.prioritas||'').includes('URGENT') ? 'OUT OF STOCK' : ((o.prioritas||'').includes('SEGERA') ? 'STOK RENDAH' : 'TERSEDIA'))}</div>
           <div>${prioritasBadge(o.prioritas)}</div>
           <div>
             <select class="statusSelect" data-order-status="${o.id}">
@@ -925,6 +991,7 @@ function renderOrder(){
         </div>
       `).join('')}
     </div></div>`;
+  animateBars(el);
 
   el.querySelectorAll('[data-order-status]').forEach(sel => {
     sel.onchange = async () => {
