@@ -689,12 +689,13 @@ function syncFromSeed(){
     const safety = numOr(seedO.safety);
     o.stok = stokv;
     o.safety = safety;
+    const isManual = MANUAL_PROGRESS_STATUSES.includes(o.statusPengadaan);
     if(safety !== null && stokv < safety){
       o.selisih = safety - stokv; o.qtyOrder = safety - stokv;
-      o.statusPengadaan = 'Plan Reorder'; o.statusPO = 'Plan Reorder';
+      if(!isManual){ o.statusPengadaan = 'Plan Reorder'; o.statusPO = 'Plan Reorder'; }
     } else {
       o.selisih = '-'; o.qtyOrder = '-';
-      o.statusPengadaan = 'Monitor'; o.statusPO = 'Monitor';
+      if(!isManual){ o.statusPengadaan = 'Monitor'; o.statusPO = 'Monitor'; }
     }
     o.prioritas = prioritasForSync(stokv, safety);
     o.groupUrgensi = groupForSync(stokv, safety);
@@ -942,6 +943,10 @@ function renderRutin(){
 
 /* ---------------- REKOMENDASI & ORDER ---------------- */
 const STATUS_PENGADAAN_OPTIONS = ['Monitor','Plan Reorder','PO Submitted','PO Approved','Barang Diterima'];
+/* Status yang sudah "maju" secara manual (dipilih user di dropdown Order) — proses sync otomatis
+   dari Live Sheet / Seed TIDAK BOLEH menimpa status ini kembali ke Monitor/Plan Reorder,
+   supaya progres pengadaan yang sudah dicatat user tidak hilang saat refresh/sync. */
+const MANUAL_PROGRESS_STATUSES = ['PO Submitted','PO Approved','Barang Diterima'];
 function populateOrderFilters(){
   const prioritasSet = [...new Set(DB.order.map(o=>o.prioritas).filter(Boolean))];
   const pSel = document.getElementById('orderFilterPrioritas');
@@ -1349,12 +1354,13 @@ function applyLiveSheetToDB(rows){
     if(o){
       const safety = numOr(o.safety);
       o.stok = newStok;
+      const isManual = MANUAL_PROGRESS_STATUSES.includes(o.statusPengadaan);
       if(safety !== null && newStok < safety){
         o.selisih = safety - newStok; o.qtyOrder = safety - newStok;
-        o.statusPengadaan = 'Plan Reorder'; o.statusPO = 'Plan Reorder';
+        if(!isManual){ o.statusPengadaan = 'Plan Reorder'; o.statusPO = 'Plan Reorder'; }
       } else {
         o.selisih = '-'; o.qtyOrder = '-';
-        o.statusPengadaan = 'Monitor'; o.statusPO = 'Monitor';
+        if(!isManual){ o.statusPengadaan = 'Monitor'; o.statusPO = 'Monitor'; }
       }
       o.prioritas = prioritasForSync(newStok, safety);
       o.groupUrgensi = groupForSync(newStok, safety);
